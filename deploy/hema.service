@@ -1,0 +1,17 @@
+[Unit]
+Description=Hemato Lab Report (hema.ark-kay.my.id) :8788
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hema
+ExecStart=/opt/hema/venv/bin/python /opt/hema/hemato_notes_server.py
+Restart=always
+RestartSec=3
+User=ubuntu
+Environment=PORT=8788
+EnvironmentFile=/opt/hema/hema.env
+
+[Install]
+WantedBy=multi-user.target

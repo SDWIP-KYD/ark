@@ -1,0 +1,342 @@
+/* HAMBURGER MENU (Left Sidebar) */
+.hamburger-btn { position:fixed; top:12px; left:12px; z-index:9999; background:#1a237e; color:#fff; border:none; width:44px; height:44px; border-radius:8px; font-size:24px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center; }
+.hamburger-btn:hover { background:#283593; }
+
+.sidebar { position:fixed; top:0; left:-300px; width:280px; height:100vh; background:#fff; box-shadow:2px 0 10px rgba(0,0,0,0.2); z-index:10000; transition:left 0.3s ease; overflow-y:auto; }
+.sidebar.open { left:0; }
+.sidebar-header { background:#1a237e; color:#fff; padding:16px; font-size:16px; font-weight:700; }
+.sidebar-close { position:absolute; top:16px; right:16px; background:none; border:none; color:#fff; font-size:24px; cursor:pointer; opacity:0.8; }
+.sidebar-close:hover { opacity:1; }
+.sidebar-menu { padding:12px 0; }
+.sidebar-item { padding:14px 20px; cursor:pointer; font-size:14px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px; }
+.sidebar-item:hover { background:#f5f5f5; }
+.sidebar-item-icon { font-size:18px; width:24px; text-align:center; }
+
+.sidebar-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; }
+.sidebar-overlay.active { display:block; }
+
+/* NOTIFICATION BADGE */
+.notif-badge { position:absolute; top:-4px; right:-4px; background:#e53935; color:#fff; border-radius:12px; padding:2px 6px; font-size:10px; font-weight:700; }
+
+/* Notification Panel */
+.notif-panel-modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.3); z-index:10001; width:90%; max-width:400px; max-height:80vh; overflow-y:auto; }
+.notif-panel-modal.show { display:block; }
+.notif-header { background:#1565c0; color:#fff; padding:12px 16px; border-radius:12px 12px 0 0; font-size:14px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+.notif-close { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; opacity:0.8; }
+.notif-close:hover { opacity:1; }
+.notif-body { padding:12px; }
+.notif-item { padding:10px 12px; margin-bottom:8px; border-radius:6px; background:#f5f5f5; font-size:12px; }
+.notif-running { background:#e3f2fd; border-left:4px solid #1565c0; }
+.notif-done { background:#e8f5e9; border-left:4px solid #2e7d32; }
+.notif-error { background:#ffebee; border-left:4px solid #c62828; }
+
+/* MODAL (Update Master List) */
+.modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; }
+.modal-overlay.active { display:flex; }
+.modal { background:#fff; border-radius:12px; width:95%; max-width:800px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.modal-header { padding:16px 20px; background:#e65100; color:#fff; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+.modal-header h2 { font-size:16px; }
+.modal-close { background:none; border:none; color:#fff; font-size:24px; cursor:pointer; opacity:0.8; }
+.modal-close:hover { opacity:1; }
+.modal-body { max-height:70vh; overflow-y:auto; padding:20px; }
+.modal-body .body-label { font-size:12px; color:#888; margin-bottom:6px; }
+.modal-body textarea { width:100%; min-height:200px; padding:12px; border:2px solid #ffccbc; border-radius:8px; font-family:monospace; font-size:13px; resize:vertical; }
+.modal-body .actions { display:flex; gap:8px; margin-top:12px; }
+.modal-body .actions button { padding:10px 20px; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; border:none; }
+.btn-parse { background:#1565c0; color:#fff; } .btn-parse:hover { background:#0d47a1; }
+.btn-apply { background:#2e7d32; color:#fff; } .btn-apply:hover { background:#1b5e20; }
+.btn-apply:disabled { background:#ccc; }
+.btn-cancel { background:#eee; color:#333; } .btn-cancel:hover { background:#ddd; }
+.preview-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }
+.preview-table th { background:#e65100; color:#fff; padding:8px; text-align:left; font-size:11px; }
+.preview-table td { border-bottom:1px solid #e0e0e0; padding:6px 8px; vertical-align:top; }
+.preview-table tr:hover { background:#fff3e0; }
+.discharged-list { background:#ffebee; padding:12px; border-radius:6px; margin-top:12px; font-size:13px; }
+.discharged-list h4 { color:#c62828; margin-bottom:6px; font-size:13px; }
+.modal-footer { padding:16px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:space-between; align-items:center; }
+.apply-status { font-size:13px; color:#2e7d32; }
+</style>
+
+<!-- Modal HTML -->
+<div id="masterModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📋 Update Master List</h2>
+      <button class="modal-close" onclick="closeMasterModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="body-label">Paste patient list di bawah:</div>
+      <textarea id="masterInput" placeholder="Format: Lantai | Kamar | Nama Pasien | NORM | Dx | Status&#10;Contoh: Kamar ISO | Kamar 507 | Gibran | 1129099 | ALL | KJS"></textarea>
+      <div class="actions">
+        <button class="btn-parse" onclick="parseMaster()">Parse</button>
+        <button class="btn-cancel" onclick="clearParse()">Clear</button>
+      </div>
+      <div id="parseResult" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="apply-status" id="applyStatus"></span>
+      <button class="btn-apply" id="applyBtn" onclick="applyMaster()" disabled>Apply & Rebuild</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification Modal -->
+<div id="notifModal" class="notif-panel-modal">
+  <div class="notif-header">
+    🔔 Job Status
+    <button class="notif-close" onclick="closeNotifications()">×</button>
+  </div>
+  <div id="notifBody" class="notif-body"></div>
+</div>
+
+<script>
+// Hamburger menu control
+function toggleSidebar() {
+  var sidebar = document.getElementById('mainSidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  if (sidebar && overlay) {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+  }
+}
+
+function closeSidebar() {
+  var sidebar = document.getElementById('mainSidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  if (sidebar && overlay) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+  }
+}
+
+// Master List Modal
+function openMasterModal() {
+  closeSidebar();
+  var modal = document.getElementById('masterModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeMasterModal() {
+  var modal = document.getElementById('masterModal');
+  if (modal) modal.classList.remove('active');
+}
+
+// Parse patient text
+var parsedPatients = [];
+function parseMaster() {
+  var textarea = document.getElementById('masterInput');
+  var content = textarea.value;
+  var resultDiv = document.getElementById('parseResult');
+  var applyBtn = document.getElementById('applyBtn');
+  var statusSpan = document.getElementById('applyStatus');
+  
+  if (!content.trim()) {
+    statusSpan.textContent = '⚠️ Masukkan list pasien dulu';
+    statusSpan.style.color = '#e65100';
+    return;
+  }
+  
+  statusSpan.textContent = '🔄 Parsing...';
+  statusSpan.style.color = '#4299e1';
+  parsedPatients = [];
+  resultDiv.innerHTML = '';
+  
+  fetch('/api/master/parse', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: content})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      parsedPatients = data.patients || [];
+      var html2 = '<div style="font-size:12px; margin-bottom:8px;">✅ Ditemukan ' + parsedPatients.length + ' pasien</div>';
+      if (parsedPatients.length > 0) {
+        html2 += '<table class="preview-table"><tr><th>NORM</th><th>Nama</th><th>Lantai</th><th>Kamar</th><th>Status</th></tr>';
+        for (var i = 0; i < Math.min(parsedPatients.length, 20); i++) {
+          var p = parsedPatients[i];
+          html2 += '<tr><td>'+p.norm+'</td><td>'+p.nama+'</td><td>'+(p.lantai||'-')+'</td><td>'+(p.kamar||'-')+'</td><td>'+(p.status||'-')+'</td></tr>';
+        }
+        html2 += '</table>';
+        if (parsedPatients.length > 20) html2 += '<div style="font-size:11px; color:#888; margin-top:4px;">...dan ' + (parsedPatients.length - 20) + ' lagi</div>';
+      }
+      resultDiv.innerHTML = html2;
+      applyBtn.disabled = parsedPatients.length === 0;
+      statusSpan.textContent = parsedPatients.length + ' pasien siap apply';
+      statusSpan.style.color = '#38a153';
+    } else {
+      statusSpan.textContent = '❌ ' + (data.error || 'Parse gagal');
+      statusSpan.style.color = '#e53e57';
+    }
+  })
+  .catch(err => {
+    statusSpan.textContent = '❌ Error: ' + err.message;
+    statusSpan.style.color = '#e53e57';
+  });
+  statusSpan.textContent = parsedPatients.length > 0 ? '✅ ' + parsedPatients.length + ' pasien siap apply' : '';
+  statusSpan.style.color = '#2e7d32';
+}
+
+function clearParse() {
+  document.getElementById('masterInput').value = '';
+  document.getElementById('parseResult').innerHTML = '';
+  document.getElementById('applyBtn').disabled = true;
+  document.getElementById('applyStatus').textContent = '';
+  parsedPatients = [];
+}
+
+// Apply to master list
+function applyMaster() {
+  if (!parsedPatients || parsedPatients.length === 0) {
+    alert('⚠️ Parse dulu list pasien');
+    return;
+  }
+  
+  var btn = document.getElementById('applyBtn');
+  var status = document.getElementById('applyStatus');
+  btn.disabled = true;
+  btn.textContent = '⏳ Applying...';
+  status.textContent = 'Mengirim...';
+  status.style.color = '#1565c0';
+  
+  fetch('/api/master/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      patients: parsedPatients,
+      rebuild: true
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.success) {
+      btn.textContent = '✅ Applied!';
+      status.textContent = 'Berhasil! ' + d.patients + ' pasien. Job: ' + (d.job_id || 'none');
+      status.style.color = '#2e7d32';
+      
+      // Show diff info
+      if (d.diff) {
+        status.innerHTML = '✅ ' + d.diff.baru + ' baru | ' + d.diff.pulang + ' pulang | ' + d.diff.sama + ' sama';
+      }
+      
+      // Close modal after 2 seconds
+      setTimeout(function() {
+        closeMasterModal();
+        // Trigger notification check
+        pollJobs();
+      }, 2000);
+    } else {
+      btn.textContent = 'Apply & Rebuild';
+      btn.disabled = false;
+      status.textContent = '❌ ' + (d.error || 'Gagal');
+      status.style.color = '#c62828';
+    }
+  })
+  .catch(function(e) {
+    btn.textContent = 'Apply & Rebuild';
+    btn.disabled = false;
+    status.textContent = '❌ ' + e.message;
+    status.style.color = '#c62828';
+  });
+}
+
+// Notification control
+var lastJobSig = '';
+var notifCount = 0;
+function pollJobs() {
+  fetch('/api/jobs/recent')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success || !d.jobs) return;
+      var jobs = d.jobs.filter(j => j.status === 'running' || j.status === 'error');
+      notifCount = jobs.length;
+      
+      var badge = document.querySelector('.notif-badge');
+      if (badge) {
+        badge.textContent = notifCount;
+        badge.style.display = notifCount > 0 ? 'block' : 'none';
+      }
+      
+      var sig = JSON.stringify(jobs);
+      if (sig === lastJobSig) return;
+      lastJobSig = sig;
+    })
+    .catch(e => console.log('Job poll error:', e));
+}
+
+function showNotifications() {
+  closeSidebar();
+  fetch('/api/jobs/recent')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success || !d.jobs) return;
+      
+      var modal = document.getElementById('notifModal');
+      var body = document.getElementById('notifBody');
+      if (!modal || !body) return;
+      
+      var html = '';
+      var jobs = d.jobs;
+      if (jobs.length === 0) {
+        html = '<div style="text-align:center; color:#888; padding:20px;">Tidak ada job aktif</div>';
+      } else {
+        jobs.forEach(function(j) {
+          var cls = 'notif-running';
+          var icon = '⏳';
+          
+          if (j.status === 'done') {
+            cls = 'notif-done';
+            icon = '✅';
+          } else if (j.status === 'error') {
+            cls = 'notif-error';
+            icon = '❌';
+          }
+          
+          var progressText = j.progress || '';
+          html += '<div class="notif-item ' + cls + '">';
+          html += '<div>' + icon + ' <b>' + (j.type === 'rebuild' ? 'Lab Update' : j.type) + '</b></div>';
+          html += '<div style="font-size:11px; margin-top:4px;">Status: ' + j.status + '</div>';
+          html += '<div style="font-size:11px;">Progress: ' + progressText + '</div>';
+          if (j.error) {
+            html += '<div style="font-size:10px; color:#c62828;">Error: ' + j.error + '</div>';
+          }
+          if (j.diff) {
+            html += '<div style="font-size:10px; margin-top:4px;">🔄 ' + j.diff.baru + ' baru | 🏠 ' + j.diff.pulang + ' pulang</div>';
+          }
+          html += '</div>';
+        });
+      }
+      
+      body.innerHTML = html;
+      modal.classList.add('show');
+      document.getElementById('sidebarOverlay').classList.add('active');
+    });
+}
+
+function closeNotifications() {
+  var modal = document.getElementById('notifModal');
+  if (modal) modal.classList.remove('show');
+  document.getElementById('sidebarOverlay').classList.remove('active');
+}
+
+function refreshAllLab() {
+  closeSidebar();
+  if (!confirm('Refresh semua lab untuk 57 pasien? (±10-15 menit)')) return;
+  
+  fetch('/api/refresh', {method:'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        alert('✅ Refresh dimulai! Job ID: ' + d.job_id + '\nCek notifikasi untuk progress.');
+        pollJobs();
+      } else {
+        alert('❌ Error: ' + (d.error || 'Unknown'));
+      }
+    })
+    .catch(e => alert('❌ Request failed: ' + e));
+}
+
+// Auto-poll every 5s
+setInterval(pollJobs, 5000);
+pollJobs();
+</script>

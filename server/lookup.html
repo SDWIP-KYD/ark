@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cek Lab by RM — SIMRS RSWS</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f5f6fa; color:#333; }
+.header { background:#e65100; color:#fff; padding:16px 20px; position:sticky; top:0; z-index:100; display:flex; justify-content:space-between; align-items:center; }
+.header h1 { font-size:18px; }
+.header small { font-size:12px; opacity:0.9; }
+.btn-update { background:#fff3e0; color:#e65100; border:none; padding:6px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.btn-update:hover { background:#ffe0b2; }
+.container { max-width:1000px; margin:0 auto; padding:16px; }
+.back-link { display:inline-block; margin-bottom:12px; color:#e65100; text-decoration:none; font-size:13px; font-weight:600; }
+.back-link:hover { text-decoration:underline; }
+.lookup-box { background:#fff; border-radius:8px; padding:16px; box-shadow:0 2px 4px rgba(0,0,0,0.08); margin-bottom:16px; border:1px solid #e0e0e0; }
+.lookup-box input { width:100%; padding:12px 16px; border:2px solid #ffccbc; border-radius:8px; font-size:16px; }
+.lookup-box input:focus { outline:none; border-color:#e65100; }
+.lookup-box button { margin-top:10px; width:100%; padding:12px; background:#e65100; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+.lookup-box button:hover { background:#bf360c; }
+.recent-box { margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.recent-label { font-size:11px; color:#888; }
+.recent-pill { background:#fbe9e7; color:#d84315; border:1px solid #ffccbc; padding:3px 8px; border-radius:12px; font-size:11px; cursor:pointer; font-weight:600; }
+.recent-pill:hover { background:#ffccbc; }
+.status { margin-top:10px; font-size:13px; color:#666; min-height:20px; }
+.error { color:#c62828; background:#ffebee; padding:12px; border-radius:6px; margin-bottom:12px; border:1px solid #ffcdd2; font-size:13px; }
+.patient-card { background:#fff; margin:12px 0; box-shadow:0 2px 6px rgba(0,0,0,0.08); border-radius:8px; border:1px solid #ffccbc; overflow:hidden; }
+.patient-header { padding:12px 16px; background:#fff3e0; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.card-actions { display:flex; gap:6px; align-items:center; }
+.refresh-btn { background:#37474f; color:#fff; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+.refresh-btn:hover { background:#546e7a; }
+.patient-name { font-weight:700; font-size:15px; color:#bf360c; }
+.patient-name .room { color:#666; font-weight:600; font-size:13px; }
+.patient-meta { font-size:12px; color:#795548; margin-top:2px; }
+.patient-body { padding:14px; }
+.special-box { background:#f9fbe7; border:1px solid #dce775; border-radius:8px; padding:12px; margin-bottom:16px; }
+.special-btn { background:#827717; color:#fff; border:none; padding:10px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center; }
+.special-btn:hover { background:#558b2f; }
+.special-content { margin-top:12px; }
+.sp-section { margin:10px 0; padding:10px 12px; border-left:4px solid #827717; background:#fff; border-radius:6px; border:1px solid #f0f4c3; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+.sp-section h4 { font-size:13px; color:#33691e; margin-bottom:6px; font-weight:700; display:flex; justify-content:space-between; }
+.sp-card { background:#fafafa; border:1px solid #eee; border-radius:6px; padding:8px 10px; margin:6px 0; }
+.sp-card-header { font-size:11px; font-weight:700; color:#558b2f; margin-bottom:4px; }
+.sp-kesimpulan { font-size:12px; color:#212121; font-weight:600; line-height:1.4; background:#fff; padding:6px 8px; border-radius:4px; border-left:3px solid #689f38; margin-top:4px; white-space:pre-wrap; }
+.sp-detail { font-size:11px; color:#616161; margin-top:4px; line-height:1.4; }
+.badge { background:#827717; color:#fff; padding:1px 7px; border-radius:10px; font-size:10px; }
+.action-bar { display:flex; gap:8px; margin:12px 0; }
+.copy-btn { background:#2e7d32; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+.copy-btn:hover { background:#1b5e20; }
+.param-search { margin:12px 0 4px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.param-search input { flex:1 1 260px; min-width:180px; padding:10px 12px; border:2px solid #e65100; border-radius:8px; font-size:14px; outline:none; }
+.param-search input:focus { border-color:#bf360c; box-shadow:0 0 0 3px rgba(230,81,0,.15); }
+.clear-search-btn { background:#e53935; color:#fff; border:none; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+.search-hint { width:100%; font-size:11px; color:#78909c; }
+.search-summary { margin:10px 0 6px; padding:8px 12px; background:#fff3e0; border-left:4px solid #e65100; border-radius:6px; font-size:13px; color:#bf360c; }
+.search-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12.5px; }
+.search-table th { background:#e65100; color:#fff; padding:8px 6px; text-align:left; font-size:11px; text-transform:uppercase; position:sticky; top:0; }
+.search-table td { padding:6px; border-bottom:1px solid #eceff1; }
+.search-table tr:nth-child(even) td { background:#fafafa; }
+.result-critical { color:#c62828; font-weight:800; }
+.result-abnormal { color:#e65100; font-weight:700; }
+.visit-tabs { display:flex; gap:6px; margin:12px 0 8px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch; }
+.visit-tabs::-webkit-scrollbar { height:6px; }
+.visit-tabs::-webkit-scrollbar-thumb { background:#ffccbc; border-radius:3px; }
+.visit-tab { padding:6px 12px; border-radius:6px; font-size:11px; cursor:pointer; background:#eceff1; text-align:center; line-height:1.3; font-weight:600; color:#455a64; white-space:nowrap; flex:0 0 auto; }
+.visit-tab.active { background:#e65100; color:#fff; }
+.visit-tab:hover { background:#ffccbc; color:#d84315; }
+.visit-panel { display:none; margin-top:8px; }
+.visit-panel.active { display:block; }
+table { width:100%; border-collapse:collapse; font-size:11px; background:#fff; border-radius:6px; overflow:hidden; border:1px solid #e0e0e0; }
+th { background:#37474f; color:#fff; text-align:left; padding:7px 8px; font-weight:600; }
+td { padding:6px 8px; border-bottom:1px solid #eee; }
+tr:hover { background:#fafafa; }
+.status-abnormal { color:#e65100; font-weight:600; }
+.status-critical { color:#c62828; font-weight:700; }
+.result-critical { color:#c62828!important; font-weight:700; }
+.result-abnormal { color:#e65100!important; font-weight:600; }
+.result-normal { color:#2e7d32; }
+.load-all-btn { background:#eceff1; color:#37474f; border:1px solid #b0bec5; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; }
+.load-all-btn:hover { background:#cfd8dc; }
+.empty { color:#999; font-style:italic; font-size:11px; padding:6px; }
+
+/* MODAL: Update Master List */
+.modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center; }
+.modal-overlay.active { display:flex; }
+.modal { background:#fff; border-radius:12px; width:95%; max-width:800px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.2); }
+.modal-header { padding:16px 20px; background:#e65100; color:#fff; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center; }
+.modal-header h2 { font-size:16px; }
+.modal-close { background:none; border:none; color:#fff; font-size:24px; cursor:pointer; opacity:0.8; }
+.modal-close:hover { opacity:1; }
+.modal-body { max-height:70vh; overflow-y:auto; padding:20px; }
+.modal-body .body-label { font-size:12px; color:#888; margin-bottom:6px; }
+.modal-body textarea { width:100%; min-height:200px; padding:12px; border:2px solid #ffccbc; border-radius:8px; font-family:monospace; font-size:13px; resize:vertical; }
+.modal-body .actions { display:flex; gap:8px; margin-top:12px; }
+.modal-body .actions button { padding:10px 20px; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; border:none; }
+.btn-parse { background:#1565c0; color:#fff; } .btn-parse:hover { background:#0d47a1; }
+.btn-apply { background:#2e7d32; color:#fff; } .btn-apply:hover { background:#1b5e20; }
+.btn-apply:disabled { background:#ccc; }
+.btn-cancel { background:#eee; color:#333; } .btn-cancel:hover { background:#ddd; }
+.preview-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }
+.preview-table th { background:#e65100; color:#fff; padding:8px; text-align:left; font-size:11px; }
+.preview-table td { border-bottom:1px solid #e0e0e0; padding:6px 8px; vertical-align:top; }
+.preview-table tr:hover { background:#fff3e0; }
+.preview-table .col-new { color:#2e7d32; font-weight:600; }
+.preview-table .col-old { color:#c62828; font-weight:600; }
+.discharged-list { background:#ffebee; padding:12px; border-radius:6px; margin-top:12px; font-size:13px; }
+.discharged-list h4 { color:#c62828; margin-bottom:6px; font-size:13px; }
+.modal-footer { padding:16px 20px; border-top:1px solid #e0e0e0; display:flex; justify-content:space-between; align-items:center; }
+.apply-status { font-size:13px; color:#2e7d32; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🔎 Cek Lab by RM (Nomor Rekam Medis)</h1>
+  <small>Real-time Direct SIMRS RSWS | Dilengkapi Kesimpulan Special & Format Konsul</small>
+  <button class="btn-update" onclick="openMasterModal()">📋 Update Master List</button>
+</div>
+<div class="container">
+  <a href="/" class="back-link">← Kembali ke Rekap Bangsal Utama</a>
+  <div class="lookup-box">
+    <input type="text" id="norm" placeholder="Masukkan NORM (bisa multi: 1469712 ; 1151276 ; 917718)..." onkeydown="if(event.key==='Enter')lookup()">
+    <button onclick="lookup()">🔍 Cek Lab & Penunjang</button>
+    <div class="recent-box" id="recent-box" style="display:none;">
+      <span class="recent-label">Riwayat:</span>
+      <div id="recent-list" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></div>
+    </div>
+    <div class="recent-box" id="autosave-box" style="display:none; margin-top:6px;">
+      <span class="recent-label">💾 Tersimpan Lokal (20):</span>
+      <div id="autosave-list" style="display:inline-flex;gap:4px;flex-wrap:wrap;"></div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  <div id="error-box"></div>
+  <div id="result"></div>
+</div>
+
+<script>
+var CURRENT_DATA = null;
+var CARD_DATA = {};
+
+// Load recent lookups from localStorage
+function loadRecent() {
+  try {
+    var raw = localStorage.getItem('hema_recent_lookups');
+    var list = raw ? JSON.parse(raw) : [];
+    var box = document.getElementById('recent-box');
+    var cont = document.getElementById('recent-list');
+    if (!list || !list.length) { box.style.display = 'none'; }
+    else {
+      cont.innerHTML = '';
+      list.forEach(function(item) {
+        var pill = document.createElement('span');
+        pill.className = 'recent-pill';
+        pill.textContent = item.norm + ' (' + (item.name ? item.name.split(' ')[0] : '') + ')';
+        pill.onclick = function() {
+          document.getElementById('norm').value = item.norm;
+          lookup();
+        };
+        cont.appendChild(pill);
+      });
+      box.style.display = 'flex';
+    }
+  } catch(e){}
+  loadAutosave();
+}
+
+function saveRecent(norm, name) {
+  try {
+    var raw = localStorage.getItem('hema_recent_lookups');
+    var list = raw ? JSON.parse(raw) : [];
+    list = list.filter(function(x){ return x.norm !== norm; });
+    list.unshift({norm: norm, name: name});
+    if (list.length > 5) list = list.slice(0, 5);
+    localStorage.setItem('hema_recent_lookups', JSON.stringify(list));
+    loadRecent();
+  } catch(e){}
+}
+
+// ----- Autosave last 20 lookups (full data, survives page reload) -----
+function saveAutosave(norm, name, data) {
+  try {
+    var raw = localStorage.getItem('hema_autosave_20');
+    var list = raw ? JSON.parse(raw) : [];
+    list = list.filter(function(x) { return x.norm !== norm; });
+    list.unshift({norm: norm, name: name, data: data, saved_at: new Date().toISOString()});
+    if (list.length > 20) list = list.slice(0, 20);
+    // Guard: drop oldest if total > 4MB
+    while (list.length > 1 && JSON.stringify(list).length > 4000000) list.pop();
+    localStorage.setItem('hema_autosave_20', JSON.stringify(list));
+    loadAutosave();
+  } catch(e){}
+}
+
+function getAutosaveByNorm(norm) {
+  try {
+    var raw = localStorage.getItem('hema_autosave_20');
+    var list = raw ? JSON.parse(raw) : [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].norm === norm) return list[i];
+    }
+  } catch(e){}
+  return null;
+}
+
+function loadAutosave() {
+  try {
+    var raw = localStorage.getItem('hema_autosave_20');
+    var list = raw ? JSON.parse(raw) : [];
+    var box = document.getElementById('autosave-box');
+    var cont = document.getElementById('autosave-list');
+    if (!box || !cont) return;
+    if (!list || !list.length) { box.style.display = 'none'; return; }
+    cont.innerHTML = '';
+    list.forEach(function(item) {
+      var pill = document.createElement('span');
+      pill.className = 'recent-pill';
+      pill.textContent = item.norm + ' (' + (item.name ? item.name.split(' ')[0] : '') + ')';
+      pill.style.borderColor = '#e65100';
+      pill.style.background = '#fff3e0';
+      pill.onclick = function() {
+        var result = document.getElementById('result');
+        result.innerHTML = '';
+        renderCard(item.data, false);
+        saveRecent(item.norm, item.name);
+        document.getElementById('status').textContent = '💾 Loaded from local save: ' + item.name + ' (RM ' + item.norm + ') • ' + (item.data.visits || []).length + ' sesi';
+      };
+      cont.appendChild(pill);
+    });
+    box.style.display = 'flex';
+  } catch(e){}
+}
+
+window.onload = function() { loadRecent(); };
+
+function pollFullLookup(jobId, preview, attempts, norm) {
+  var status = document.getElementById('status');
+  // Up to 20 minutes; every poll is a fast request.
+  if (attempts > 600) {
+    status.textContent = '✅ ' + preview.name + ' (RM ' + preview.norm + ') • ' + preview.visits.length + ' sesi (full fetch timeout)';
+    return;
+  }
+  setTimeout(function() {
+    fetch('/api/lookup-job/status/' + jobId, {cache: 'no-store'})
+      .then(function(r) { return r.json(); })
+      .then(function(job) {
+        if (job.status === 'running') {
+          status.textContent = '✅ ' + preview.name + ' (RM ' + preview.norm + ') • ' + preview.visits.length + ' sesi tampil ⏳ Full fetch berjalan ' + Math.floor((attempts + 1) * 2) + ' detik...';
+          pollFullLookup(jobId, preview, attempts + 1, norm);
+          return;
+        }
+        if (job.status === 'done' && job.result && job.result.success) {
+          var full = job.result;
+          CURRENT_DATA = full;
+          saveAutosave(full.norm, full.name, full);
+          status.textContent = '✅ ' + full.name + ' (RM ' + full.norm + ') • ' + full.visits.length + ' sesi kunjungan lab (lengkap)';
+          // Re-render just this RM's card (replace in place) so multi-RM stays intact.
+          if (norm) {
+            var card = document.querySelector('.patient-card[data-norm="' + norm + '"]');
+            if (card) {
+              var newHtml = renderCardHTML(full);
+              card.outerHTML = newHtml;
+              return;
+            }
+          }
+          renderCard(full, false);
+          return;
+        }
+        throw new Error(job.error || (job.result && job.result.error) || 'Full fetch gagal');
+      })
+      .catch(function(e) {
+        status.textContent = '✅ ' + preview.name + ' (RM ' + preview.norm + ') • ' + preview.visits.length + ' sesi (full fetch gagal: ' + e + ')';
+      });
+  }, 2000);
+}
+
+// ---- Refresh/refetch a single RM (bypass cache) ----
+function refreshRM(norm) {
+  var status = document.getElementById('status');
+  status.textContent = '🔄 Refetch RM ' + norm + ' dari SIMRS (bypass cache)...';
+  fetch('/api/lookup-job/start/' + norm + '?special=1')
+    .then(function(r) { return r.json(); })
+    .then(function(started) {
+      if (!started.success || !started.job_id) throw new Error(started.error || 'Gagal memulai refetch');
+      status.textContent += ' ⏳ berjalan...';
+      pollFullLookup(started.job_id, {name:'', norm: norm, visits:[]}, 0, norm);
+    })
+    .catch(function(e) {
+      status.textContent = '❌ Refetch RM ' + norm + ' gagal: ' + e;
+    });
+}
+
+function lookup() {
+  var input = document.getElementById('norm').value.trim();
+  var status = document.getElementById('status');
+  var result = document.getElementById('result');
+  var errbox = document.getElementById('error-box');
+  errbox.innerHTML = '';
+  if (!input) { status.textContent = '⚠️ Masukkan NORM'; return; }
+
+  // Support multi-RM: split by ; , newline or whitespace
+  var norms = input.split(/[;,/\n\s]+/).map(function(s){ return s.trim(); }).filter(function(s){ return s && /^\d+$/.test(s); });
+  if (!norms.length) { status.textContent = '⚠️ NORM harus angka'; return; }
+
+  if (norms.length === 1) {
+    result.innerHTML = '<div style="text-align:center;padding:30px;color:#e65100;">⏳ Memproses...<br><small>Mengambil Lab & Special Data dari SIMRS RSWS</small></div>';
+    lookupOne(norms[0]);
+  } else {
+    result.innerHTML = '';
+    status.textContent = '🔍 Multi-lookup ' + norms.length + ' RM: ' + norms.join(', ');
+    norms.forEach(function(n) {
+      lookupOne(n);
+    });
+  }
+}
+
+function lookupOne(norm) {
+  var status = document.getElementById('status');
+  var errbox = document.getElementById('error-box');
+
+  // Local-first: if this RM is in the autosave store, render instantly from local
+  // data, then silently refresh in the background so the tab can be closed anytime.
+  var local = getAutosaveByNorm(norm);
+  if (local && local.data) {
+    var ld = local.data;
+    CURRENT_DATA = ld;
+    saveRecent(ld.norm, ld.name);
+    status.textContent = '⚡ ' + ld.name + ' (RM ' + ld.norm + ') • ' + ld.visits.length + ' sesi (dari simpanan lokal) — refresh di background';
+    renderCard(ld, true);
+    fetch('/api/lookup-job/start/' + norm + '?special=1')
+      .then(function(r2) { return r2.json(); })
+      .then(function(started) {
+        if (started.success && started.job_id) pollFullLookup(started.job_id, ld, 0, norm);
+      })
+      .catch(function(){});
+    return;
+  }
+
+  status.textContent = '⏳ RM ' + norm + ': mengambil 3 kunjungan terbaru...';
+
+  // PHASE 1: Quick — 3 latest visits only
+  fetch('/api/lookup/' + norm + '?special=1&quick=1&max=3')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.success) {
+        errbox.innerHTML += '<div class="error">RM ' + norm + ': ' + d.error + '</div>';
+        return;
+      }
+      CURRENT_DATA = d;
+      saveRecent(d.norm, d.name);
+      saveAutosave(d.norm, d.name, d);
+      var partial = d.is_partial ? ' (pratinjau 3 terbaru)' : '';
+      status.textContent = '✅ ' + d.name + ' (RM ' + d.norm + ') • ' + d.visits.length + ' sesi' + partial;
+      renderCard(d, true);
+
+      // PHASE 2: arbitrary-RM full fetch as a server-side background job.
+      if (d.is_partial) {
+        status.textContent += ' ⏳ Mengambil semua riwayat di background...';
+        fetch('/api/lookup-job/start/' + norm + '?special=1')
+          .then(function(r2) { return r2.json(); })
+          .then(function(started) {
+            if (!started.success || !started.job_id) throw new Error(started.error || 'Gagal memulai full fetch');
+            pollFullLookup(started.job_id, d, 0, norm);
+          })
+          .catch(function(e) {
+            status.textContent = '✅ ' + d.name + ' (RM ' + d.norm + ') • ' + d.visits.length + ' sesi (gagal mulai full fetch: ' + e + ')';
+          });
+      }
+    })
+    .catch(function(e) {
+      errbox.innerHTML += '<div class="error">RM ' + norm + ': Gagal: ' + e + '</div>';
+    });
+}
+
+function classify(pv) {
+  var n = String(pv.name).toUpperCase();
+  var v = parseFloat(String(pv.hasil).replace(',', '.').replace(/[<>\s]/g, ''));
+  if (isNaN(v)) return 'N';
+  // Critical thresholds
+  if ((n.includes('HB') || n.includes('HGB')) && v < 6.0) return 'K';
+  if ((n.includes('PLT') || n.includes('TROMBOSIT')) && v < 20.0) return 'K';
+  if (n === 'KALIUM' || n === 'K') { if (v < 2.5 || v > 6.0) return 'K'; }
+  if (n === 'NATRIUM' || n === 'NA') { if (v < 120 || v > 160) return 'K'; }
+  
+  var m = String(pv.normal).match(/([\d.]+)\s*-\s*([\d.]+)/);
+  if (m) {
+    var lo = parseFloat(m[1]), hi = parseFloat(m[2]);
+    if (v < lo || v > hi) return 'A';
+  }
+  return 'N';
+}
+
+function renderCardHTML(d) {
+  var uid = (d.norm || 'x').replace(/\D/g, '');
+  CARD_DATA[uid] = d;
+  var html = '<div class="patient-card" data-norm="' + d.norm + '">';
+  html += '<div class="patient-header"><div><div class="patient-name">👤 ' + d.name + ' <span class="room">/ RM ' + d.norm + '</span></div>';
+  html += '<div class="patient-meta">Total ' + d.visits.length + ' Sesi Kunjungan Lab di SIMRS</div></div>';
+  html += '<div class="card-actions"><button class="refresh-btn" onclick="refreshRM(\'' + d.norm + '\')" title="Refetch ulang data dari SIMRS">🔄 Refetch</button></div></div>';
+  html += '<div class="patient-body">';
+
+  // (no global copy bar — copy button is per-visit below)
+
+  // Special Data Section (PA / Rad / BMP / LCS / Immuno / IHC)
+  var sp = d.special || {};
+  var spCount = (sp.pa||[]).length + (sp.rad||[]).length + (sp.bmp||[]).length + (sp.lcs||[]).length + (sp.immuno||[]).length + (sp.ihc||[]).length;
+  
+  html += '<div class="special-box">';
+  html += '<button class="special-btn" onclick="toggleSpecialContent(this)"><span>📂 Penunjang Khusus (PA / Rad / BMP / LCS / Immuno / IHC)</span><span class="badge">' + spCount + ' Record</span></button>';
+  html += '<div class="special-content" style="display:none;">';
+  
+  if (spCount === 0) {
+    html += '<div class="empty">Tidak ada riwayat penunjang khusus di SIMRS untuk pasien ini.</div>';
+  } else {
+    var secs = {'pa':'🔬 PA (Histopatologi & Sitologi)','rad':'📡 Radiologi','bmp':'🩸 BMP (Evaluasi SST)','lcs':'🧠 LCS (Sitologi)','immuno':'🧬 Immunofenotyping','ihc':'🎯 IHC'};
+    for (var k in secs) {
+      var arr = sp[k] || [];
+      if (!arr.length) continue;
+      html += '<div class="sp-section"><h4>' + secs[k] + ' <span class="badge">' + arr.length + '</span></h4>';
+      for (var i = 0; i < arr.length; i++) {
+        var x = arr[i];
+        var kes = x.kesimpulan || x.kesan || x.hasil || '';
+        var tgl = x.tanggal || '?';
+        var judul = x.tindakan || x.jaringan || x.klinis || 'Pemeriksaan Penunjang';
+        
+        html += '<div class="sp-card">';
+        html += '<div class="sp-card-header">📅 ' + tgl + ' • ' + judul + '</div>';
+        if (kes) {
+          html += '<div class="sp-kesimpulan"><b>Kesan / Kesimpulan:</b><br>' + kes + '</div>';
+        }
+        if (x.mikroskopik) {
+          html += '<div class="sp-detail"><b>Mikroskopik:</b> ' + x.mikroskopik + '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+  }
+  html += '</div></div>';
+
+  // Lab visits tabs (horizontal scroll, all visits shown)
+  if (!d.visits || !d.visits.length) {
+    html += '<div class="empty">⚠️ Belum ada riwayat hasil lab rutin di SIMRS.</div>';
+  } else {
+    html += '<div class="param-search"><input id="param-q-' + uid + '" type="text" placeholder="🔍 Cari parameter… contoh: ureum, albumin, RET, hb" oninput="searchParams(this.value,\'' + uid + '\')" autocomplete="off"><button class="clear-search-btn" id="clear-sb-' + uid + '" onclick="clearParamSearch(\'' + uid + '\')" style="display:none;">✖ Reset</button><div class="search-hint">Scan semua ' + d.visits.length + ' kunjungan — trend naik/turun</div></div>';
+    html += '<div id="search-results-' + uid + '" style="display:none;"></div>';
+    html += '<div id="visits-area-' + uid + '">';
+    html += '<div class="visit-tabs">';
+    d.visits.forEach(function(v, vi) {
+      var tgl = (v.tgl && v.tgl !== '?') ? (v.tgl.length >= 16 ? v.tgl.slice(0, 16) : v.tgl.slice(0, 10)) : 'Tgl ?';
+      html += '<div class="visit-tab ' + (vi === 0 ? 'active' : '') + '" onclick="showVisit(this,\'v-' + uid + '-' + vi + '\')">Kunj ' + (vi+1) + '<br><small>' + tgl + '</small></div>';
+    });
+    html += '</div>';
+
+    d.visits.forEach(function(v, vi) {
+      html += '<div class="visit-panel ' + (vi === 0 ? 'active' : '') + '" id="v-' + uid + '-' + vi + '">';
+      html += '<div class="action-bar"><button class="copy-btn" onclick="copyVisit(\'' + uid + '\',' + vi + ')">📋 Salin Kunjungan ' + (vi+1) + ' (Format Laporan)</button></div>';
+      html += '<table><tr><th>Parameter</th><th>Hasil</th><th>N Normal</th><th>Satuan</th></tr>';
+      (v.params || []).forEach(function(pv) {
+        html += '<tr><td>' + (pv.name||'') + '</td><td>' + (pv.hasil||'') + '</td><td>' + (pv.normal||'') + '</td><td>' + (pv.satuan||'') + '</td></tr>';
+      });
+      html += '</table></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+function renderCard(d, append) {
+  var html = renderCardHTML(d);
+  var result = document.getElementById('result');
+  if (append) result.innerHTML += html;
+  else result.innerHTML = html;
+}
+
+function searchParams(q, uid) {
+  var term = (q || '').trim().toLowerCase();
+  var resBox = document.getElementById('search-results-' + uid);
+  var visitsArea = document.getElementById('visits-area-' + uid);
+  var clearBtn = document.getElementById('clear-sb-' + uid);
+  if (!resBox || !visitsArea) return;
+  if (!term) { clearParamSearch(uid); return; }
+  if (clearBtn) clearBtn.style.display = 'inline-block';
+  visitsArea.style.display = 'none';
+  resBox.style.display = 'block';
+
+  var d = CARD_DATA[uid];
+  if (!d) return;
+  var rows = [];
+  (d.visits || []).forEach(function(v) {
+    var tgl = (v.tgl && v.tgl !== '?') ? v.tgl.slice(0, 16) : 'Tanggal ?';
+    (v.params || []).forEach(function(p) {
+      var n = String(p.name || '').toLowerCase();
+      if (n.indexOf(term) !== -1) {
+        rows.push({tgl: tgl, name: p.name, hasil: p.hasil, normal: p.normal, satuan: p.satuan});
+      }
+    });
+  });
+  rows.sort(function(a, b) { return b.tgl.localeCompare(a.tgl); });
+
+  if (!rows.length) {
+    resBox.innerHTML = '<div class="empty">❌ Parameter "' + q + '" tidak ditemukan di semua kunjungan.</div>';
+    return;
+  }
+  var html = '<div class="search-summary">🔎 <b>' + rows.length + '</b> hasil untuk "<b>' + q + '</b>" di ' + d.visits.length + ' kunjungan</div>';
+  html += '<table class="search-table"><tr><th>Tanggal</th><th>Parameter</th><th>Hasil</th><th>N Normal</th><th>Satuan</th></tr>';
+  rows.forEach(function(r) {
+    var cls = '';
+    var flag = '';
+    var sp = classify({name: r.name, hasil: r.hasil, normal: r.normal});
+    if (sp === 'K') { cls = 'result-critical'; flag = ' 🔴'; }
+    else if (sp === 'A') { cls = 'result-abnormal'; flag = ' 🟠'; }
+    html += '<tr><td>' + r.tgl + '</td><td>' + r.name + '</td><td class="' + cls + '">' + (r.hasil||'') + flag + '</td><td>' + (r.normal||'') + '</td><td>' + (r.satuan||'') + '</td></tr>';
+  });
+  html += '</table>';
+  resBox.innerHTML = html;
+}
+
+function clearParamSearch(uid) {
+  var resBox = document.getElementById('search-results-' + uid);
+  var visitsArea = document.getElementById('visits-area-' + uid);
+  var input = document.getElementById('param-q-' + uid);
+  var clearBtn = document.getElementById('clear-sb-' + uid);
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (resBox) { resBox.style.display = 'none'; resBox.innerHTML = ''; }
+  if (visitsArea) visitsArea.style.display = 'block';
+}
+
+function toggleSpecialContent(btn) {
+  var box = btn.parentElement.querySelector('.special-content');
+  if (box.style.display === 'none') {
+    box.style.display = 'block';
+    btn.style.background = '#558b2f';
+  } else {
+    box.style.display = 'none';
+    btn.style.background = '#827717';
+  }
+}
+
+function copyVisit(uid, vi) {
+  var d = CARD_DATA[uid];
+  if (!d || !d.visits || !d.visits[vi]) {
+    alert('Tidak ada data kunjungan untuk disalin'); return;
+  }
+  var v = d.visits[vi];
+  var tgl = (v.tgl && v.tgl !== '?') ? v.tgl : 'Tanggal ?';
+  var lines = [];
+  lines.push('(' + tgl + ')');
+  (v.params || []).forEach(function(p) {
+    var sat = (p.satuan && p.satuan !== '0') ? ' ' + p.satuan : '';
+    lines.push((p.name || '') + ' : ' + (p.hasil || '') + sat);
+  });
+
+  var text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(function() {
+    alert('✅ Kunjungan ' + (vi+1) + ' disalin ke clipboard!');
+  }).catch(function() {
+    prompt('Salin teks berikut:', text);
+  });
+}
+
+function loadAllVisits() {
+  if (!CURRENT_DATA || !CURRENT_DATA.visits) return;
+  var d = CURRENT_DATA;
+  var tabs = document.querySelector('.visit-tabs');
+  var btn = document.querySelector('.load-all-btn');
+  var body = document.querySelector('.patient-body');
+  
+  d.visits.forEach(function(v, vi) {
+    if (vi < 5) return;
+    var tab = document.createElement('div');
+    tab.className = 'visit-tab';
+    tab.setAttribute('onclick', "showVisit(this,'v-" + vi + "')");
+    var tgl = v.tgl ? (v.tgl.length >= 16 ? v.tgl.slice(0, 16) : v.tgl.slice(0, 10)) : '?';
+    tab.innerHTML = 'Kunj ' + (vi+1) + '<br><small>' + tgl + '</small>';
+    tabs.insertBefore(tab, btn);
+
+    var panel = document.createElement('div');
+    panel.className = 'visit-panel';
+    panel.id = 'v-' + vi;
+    var html = '<table><tr><th>Parameter</th><th>Hasil</th><th>N Normal</th><th>Satuan</th><th>Status</th></tr>';
+    (v.params || []).forEach(function(pv) {
+      var sp = classify(pv);
+      var cls = sp === 'K' ? 'critical' : (sp === 'A' ? 'abnormal' : 'normal');
+      var icon = sp === 'K' ? '🔴' : (sp === 'A' ? '🟠' : '');
+      var sl = sp === 'K' ? 'KRITIS' : (sp === 'A' ? 'Bermakna' : 'Normal');
+      html += '<tr><td>' + (pv.name||'') + '</td><td class="result-' + cls + '">' + (pv.hasil||'') + '</td><td>' + (pv.normal||'') + '</td><td>' + (pv.satuan||'') + '</td><td class="status-' + cls + '">' + icon + ' ' + sl + '</td></tr>';
+    });
+    html += '</table>';
+    panel.innerHTML = html;
+    body.appendChild(panel);
+  });
+  if (btn) btn.style.display = 'none';
+}
+
+function showVisit(t, p) {
+  var c = t.closest('.patient-card');
+  c.querySelectorAll('.visit-tab').forEach(function(x){ x.classList.remove('active'); });
+  c.querySelectorAll('.visit-panel').forEach(function(x){ x.classList.remove('active'); });
+  t.classList.add('active');
+  var target = document.getElementById(p);
+  if (target) target.classList.add('active');
+}
+
+// ====== MODAL: Update Master List ======
+var ParsedPatients = [];
+var DischargedList = [];
+
+function openMasterModal() {
+  document.getElementById('masterModal').classList.add('active');
+  document.getElementById('sensusInput').value = '';
+  document.getElementById('parseStatus').textContent = '';
+  document.getElementById('previewArea').innerHTML = '';
+  document.getElementById('dischargedArea').innerHTML = '';
+  document.getElementById('btnApply').disabled = true;
+  document.getElementById('footerStatus').textContent = 'Paste sensus & klik "Parse"';
+  ParsedPatients = [];
+  DischargedList = [];
+}
+function closeMasterModal() {
+  document.getElementById('masterModal').classList.remove('active');
+}
+
+function esc(s) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(s || ''));
+  return d.innerHTML;
+}
+
+function parseSensus() {
+  var text = document.getElementById('sensusInput').value.trim();
+  if (!text) { alert('Isi dulu teks sensusnya'); return; }
+  var status = document.getElementById('parseStatus');
+  status.textContent = '⏳ Parsing...';
+
+  var parsed = [];
+  var currentFloor = '';
+  var currentRoom = '';
+  var lines = text.split('\n');
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+
+    // 1. Detect floor/area header (any ALL CAPS line that's a header)
+    // Formats: "MOCHIL LANTAI 5", "PICU", "LANTAI 4 PICU", "LANTAI 7 KEMO"
+    var allCapsLine = line.replace(/\s+/g,' ').toUpperCase();
+    if (allCapsLine.match(/^(LANTAI|MOCHIL|PICU|PCC|PJT|ICU|IRD|HCU|PINANG|LONTARA|PALEM|CARDIO|NON KEMO|RUANG)\s*/i) &&
+        line.length < 50 && !line.match(/\/|(\d{3,})/) && !line.match(/^(\d+[\.\)])/)) {
+      currentFloor = line.replace(/\s+/g,' ').trim();
+      currentRoom = '';
+      continue;
+    }
+
+    // 2. Detect room/bed header formats
+    // Format A: "(506.3)." or "(508.2)." — Room with bed
+    var roomNumMatch = line.match(/^\((\d+)\.\d+\)\.?$/i);
+    if (roomNumMatch && line.length < 20) {
+      currentRoom = 'Kamar ' + roomNumMatch[1];
+      continue;
+    }
+    // Format B: "(Bed 1)" or "(Bed 4)"
+    var bedHeaderMatch = line.match(/^\(Bed\s*\d+\)$/i);
+    if (bedHeaderMatch && line.length < 20) {
+      currentRoom = 'Bed ' + line.replace(/[()]/g,'').trim();
+      continue;
+    }
+    // Format C: "KAMAR 505"
+    var camMatch = line.match(/^(KAMAR)\s+(\d+)$/i);
+    if (camMatch && line.length < 30 && !line.match(/\/|\d{5,}/)) {
+      currentRoom = 'Kamar ' + camMatch[2];
+      continue;
+    }
+    // Format D: "KAMAR VIP 717"
+    var vipMatch = line.match(/^(KAMAR\s+VIP\s*\d+)$/i);
+    if (vipMatch && line.length < 30 && !line.match(/\/|\d{5,}/)) {
+      currentRoom = 'Kamar VIP ' + vipMatch[1].replace('KAMAR VIP ','');
+      continue;
+    }
+    // Format E: "KAMAR ISO"
+    var isoMatch = line.match(/^KAMAR\s+(ISO|ISOLASI)$/i);
+    if (isoMatch && line.length < 30) {
+      currentRoom = 'Kamar ' + isoMatch[1].toUpperCase();
+      continue;
+    }
+
+    // 3. Skip empty lines, dashes, and standalone words that aren't headers
+    if (!line || line === '-' || line === '-' || line.match(/^[-•–—]+$/)) continue;
+
+    // 4. Parse patient entry — robust split-based approach
+    var bed = '', room = '', name = '', norm = '', ttl = '', dx = '', st = '';
+
+    // strip leading "Number." or "Number)"
+    var entryLine = line.replace(/^\s*\d+[\.\)]\s*/, '');
+
+    // inline (506.3) or (508.2) room.bed → Kamar/room, bed
+    var rb = entryLine.match(/^\((\d+)\.\s*(\d+)\)\.?\s*/);
+    if (rb) { room = 'Kamar ' + rb[1]; bed = rb[2]; entryLine = entryLine.slice(rb[0].length); }
+
+    // inline (Bed 1) → bed
+    if (!rb) {
+      var bd = entryLine.match(/^\(?\s*[Bb]ed\s*(\d+)\)?\s*/);
+      if (bd) { bed = bd[1]; entryLine = entryLine.slice(bd[0].length); }
+    }
+
+    // Now split the rest by '/' — NORM can be at any position (TTL may precede it: "Nama / TTL / NORM / DX")
+    var segs = entryLine.split('/').map(function(s){ return s.trim(); });
+    if (segs.length >= 2) {
+      // find NORM = first pure-digit segment 3-8 chars (any position)
+      var normIdx = -1;
+      for (var si=0; si<segs.length; si++) {
+        if (/^\d{3,8}$/.test(segs[si])) { normIdx = si; break; }
+      }
+      if (normIdx === -1) { continue; }
+      name = segs[0];
+      norm = segs[normIdx];
+      var restSegs = segs.slice(1).filter(function(s,ki){ return ki+1 !== normIdx; });
+      // last segment is often the status token (LEADER/KJS/Leader)
+      var lastSeg = restSegs.length ? restSegs[restSegs.length-1] : '';
+      var haveStatus = /^(LEADER|KJS|Leader|Kls\s?J|KLS J)$/i.test(lastSeg);
+      if (haveStatus) {
+        st = lastSeg;
+        restSegs = restSegs.slice(0, -1);
+      }
+      // TTL = a date-like segment (may be before or after NORM)
+      if (restSegs.length) {
+        if (/^\d{1,2}[\-\/\s](?:Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Sep|Okt|Nov|Des|\d)/i.test(restSegs[0]) || /^\d{1,2}[-/.]\d{2,4}$/.test(restSegs[0]) || /^\d{1,2}\s*(?:Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Sep|Okt|Nov|Des)[a-z]*\s*\d{2,4}$/i.test(restSegs[0]) || /tahun|bulan/i.test(restSegs[0])) {
+          ttl = restSegs[0];
+          restSegs = restSegs.slice(1);
+        }
+        dx = restSegs.join(' / ').trim();
+      }
+      if (!st) st = (bed ? 'KJS' : 'LEADER');
+      // normalize
+      name = name.replace(/\s+/g, ' ').trim();
+      norm = norm.replace(/\D/g, '');
+      dx = dx.replace(/\s+/g, ' ').trim();
+      st = st.toUpperCase().replace(/KLS\s?J|KLSJ/, 'KJS').replace(/LEADER\.?/i, 'LEADER').replace(/KJS\.?/, 'KJS').trim();
+      if (!/^(LEADER|KJS|MCC\d+)$/.test(st)) st = 'KJS';
+    } else {
+      continue;
+    }
+
+    if (name && norm) {
+      // Normalize floor/room
+      var floorLabel = currentFloor || 'Tidak Diketahui';
+      var roomLabel = room || currentRoom || 'Tidak Diketahui';
+      if (bed && !room && !currentRoom) roomLabel = 'Bed ' + bed;
+
+      parsed.push({
+        norm: norm,
+        nama: name,
+        ttl: ttl,
+        dx: dx,
+        status: st,
+        lantai: floorLabel,
+        kamar: roomLabel,
+        bed: bed || '-'
+      });
+    }
+  }
+
+  if (parsed.length === 0) {
+    status.textContent = '❌ Tidak ada pasien ter-parse. Format: Nama / NORM / TTL / DX / Status';
+    return;
+  }
+  status.textContent = '✅ Ditemukan ' + parsed.length + ' pasien.';
+  ParsedPatients = parsed;
+  showPreview();
+}
+
+function showPreview() {
+  var preview = document.getElementById('previewArea');
+  var discharged = document.getElementById('dischargedArea');
+  var btn = document.getElementById('btnApply');
+  var footer = document.getElementById('footerStatus');
+
+  fetch('/api/masters/current')
+    .then(function(r){ return r.json(); })
+    .then(function(resp) {
+      var currentNorms = {};
+      (resp.patients || []).forEach(function(p){ currentNorms[p.norm] = p; });
+      DischargedList = [];
+      for (var key in currentNorms) {
+        if (!ParsedPatients.some(function(pp){ return pp.norm === key; })) {
+          DischargedList.push(currentNorms[key]);
+        }
+      }
+      var html = '<table class="preview-table"><tr><th>No</th><th>Lantai/Kamar</th><th>Bed</th><th>Nama</th><th>NORM</th><th>TTL</th><th>DX</th><th>Status</th><th>Aksi</th></tr>';
+      ParsedPatients.forEach(function(p, i) {
+        var isNew = !currentNorms[p.norm];
+        var action = isNew ? '<span style="color:#2e7d32;">Baru</span>' : '<span style="color:#1565c0;">Update</span>';
+        html += '<tr><td>'+(i+1)+'</td><td>'+esc(p.lantai)+'/'+esc(p.kamar)+'</td><td>'+esc(p.bed)+'</td><td>'+esc(p.nama)+'</td><td>'+p.norm+'</td><td>'+esc(p.ttl)+'</td><td>'+esc(p.dx)+'</td><td>'+esc(p.status)+'</td><td>'+action+'</td></tr>';
+      });
+      html += '</table>';
+      preview.innerHTML = html;
+      if (DischargedList.length > 0) {
+        var dhtml = '<div class="discharged-list"><h4>⚠️ '+DischargedList.length+' Pasien discharge:</h4>';
+        DischargedList.forEach(function(p){ dhtml += '  - '+esc(p.nama)+' (RM '+p.norm+')</div>'; });
+        discharged.innerHTML = dhtml;
+      } else {
+        discharged.innerHTML = '<div style="background:#e8f5e9; padding:12px; border-radius:6px; margin-top:12px; font-size:13px;">✅ Tidak ada pasien discharge</div>';
+      }
+      btn.disabled = false;
+      footer.textContent = '✅ '+ParsedPatients.length+' pasien, '+DischargedList.length+' discharge';
+    })
+    .catch(function() {
+      // Fallback: no master endpoint
+      var html = '<table class="preview-table"><tr><th>No</th><th>Lantai</th><th>Nama</th><th>NORM</th><th>DX</th><th>Status</th></tr>';
+      ParsedPatients.forEach(function(p, i){
+        html += '<tr><td>'+(i+1)+'</td><td>'+esc(p.lantai)+'</td><td>'+esc(p.nama)+'</td><td>'+p.norm+'</td><td>'+esc(p.dx)+'</td><td>'+esc(p.status)+'</td></tr>';
+      });
+      html += '</table>';
+      preview.innerHTML = html;
+      discharged.innerHTML = '<div style="background:#fff3e0; padding:12px; border-radius:6px; margin-top:12px; font-size:13px;">⚠️ Discharge otomatis tidak tersedia (server belum setup). Pasang /api/masters/current endpoint di hemato_notes_server.py.</div>';
+      DischargedList = [];
+      btn.disabled = false;
+      footer.textContent = '✅ '+ParsedPatients.length+' pasien ter-parse. Apply untuk update master.';
+    });
+}
+
+function applySensus() {
+  if (!ParsedPatients.length) { alert('Parse dulu!'); return; }
+  if (!confirm('Terapkan master list? '+ParsedPatients.length+' pasien di-update, '+DischargedList.length+' discharge. Pipeline rebuild.')) return;
+
+  var statusEl = document.getElementById('footerStatus');
+  statusEl.innerHTML = '⏳ Mengirim...';
+  document.getElementById('btnApply').disabled = true;
+
+  fetch('/api/master/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      patients: ParsedPatients,
+      discharged: DischargedList.map(function(p){ return p.norm; }),
+      rebuild: true
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(resp) {
+    if (resp.success) {
+      statusEl.innerHTML = '✅ <b>BERHASIL!</b> Pipeline rebuild started. Job: '+resp.job_id;
+      pollBuildStatus(resp.job_id);
+    } else {
+      statusEl.innerHTML = '❌ Error: ' + resp.error;
+      document.getElementById('btnApply').disabled = false;
+    }
+  })
+  .catch(function(e) {
+    statusEl.innerHTML = '❌ Request gagal: ' + e;
+    document.getElementById('btnApply').disabled = false;
+  });
+}
+
+function pollBuildStatus(jobId) {
+  var tries = 0;
+  var poll = setInterval(function() {
+    tries++;
+    if (tries > 120) { clearInterval(poll); return; }
+    fetch('/api/build/status/' + jobId)
+      .then(function(r){ return r.json(); })
+      .then(function(resp) {
+        if (resp.status === 'done') {
+          clearInterval(poll);
+          document.getElementById('footerStatus').innerHTML = '✅ <b>REBUILD SELESAI!</b> <a href="/">Klik disini</a>';
+        } else {
+          document.getElementById('footerStatus').innerHTML = '⏳ Pipeline: ' + (resp.progress || '');
+        }
+      }).catch(function(){});
+  }, 5000);
+}
+</script>
+
+<!-- Modal HTML -->
+<div class="modal-overlay" id="masterModal">
+<div class="modal">
+  <div class="modal-header">
+    <h2>📋 Update Master Sensus</h2>
+    <button class="modal-close" onclick="closeMasterModal()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <p class="body-label" style="margin-bottom:12px; color:#e65100; font-weight:600;">Paste teks sensus pasien dari WA/residen (format: Nama / NORM / TTL / DX / Status per baris)</p>
+    <textarea id="sensusInput" placeholder="Contoh:
+LANTAI 4 PICU
+1. (Bed 4) Kabsyah Sudirman / 1690753 / 24-04-2022 / ALL L1 High Risk / LEADER
+2. (Bed 10) Azizah Talita / 1709447 / 16-02-2024 / Anoxia + Gizi Buruk / KJS
+
+LANTAI 5
+1. (Bed 1) Muh. Fachrul / 1009434 / 07-05-2020 / MDS + CAP / LEADER"></textarea>
+    <div class="actions">
+      <button class="btn-parse" onclick="parseSensus()">🔍 Parse Sensus</button>
+    </div>
+    <div id="parseStatus" style="margin-top:10px; font-size:13px; min-height:20px;"></div>
+    <div id="previewArea"></div>
+    <div id="dischargedArea"></div>
+  </div>
+  <div class="modal-footer">
+    <div id="footerStatus" style="font-size:13px; color:#666;">Parse sensus dulu sebelum apply</div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn-cancel" onclick="closeMasterModal()">Batal</button>
+      <button class="btn-apply" id="btnApply" disabled onclick="applySensus()">✅ Apply & Rebuild</button>
+    </div>
+  </div>
+</div>
+</div>
+</body>
+</html>

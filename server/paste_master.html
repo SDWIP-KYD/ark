@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paste Master Sensus - Hemato</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; color: #333; }
+.topbar { background: #1a237e; color: #fff; padding: 16px 20px; position: sticky; top: 0; z-index: 100; }
+.topbar h1 { font-size: 18px; }
+.topbar a { color: #fff; text-decoration: none; opacity: 0.8; font-size: 13px; margin-left: 16px; }
+.topbar a:hover { opacity: 1; }
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+.card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.card h2 { font-size: 16px; margin-bottom: 12px; color: #1a237e; }
+.model-select { margin-bottom: 12px; }
+.model-select label { font-size: 13px; color: #666; display: block; margin-bottom: 4px; }
+.model-select select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+textarea { width: 100%; min-height: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; }
+textarea:focus { outline: none; border-color: #1a237e; }
+.btn-group { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-save { background: #64b5f6; color: #fff; }
+.btn-save:hover:not(:disabled) { background: #42a5f5; }
+.btn-parse { background: #9c27b0; color: #fff; }
+.btn-parse:hover:not(:disabled) { background: #7b1fa2; }
+.btn-apply { background: #e65100; color: #fff; }
+.btn-apply:hover:not(:disabled) { background: #bf360c; }
+.status { padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 13px; }
+.status.info { background: #e3f2fd; color: #1565c0; }
+.status.success { background: #e8f5e9; color: #2e7d32; }
+.status.error { background: #ffebee; color: #c62828; }
+.preview { margin-top: 20px; padding: 16px; background: #fafafa; border-radius: 8px; border-left: 4px solid #1a237e; max-height: 500px; overflow-y: auto; }
+.preview h3 { font-size: 14px; margin-bottom: 8px; color: #1a237e; }
+.preview-list { font-size: 13px; line-height: 1.6; }
+.meta { font-size: 12px; color: #666; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>📋 Paste Master Sensus (AI Parser)</h1>
+  <a href="/">← Kembali ke Report</a>
+</div>
+<div class="container">
+  <div class="card">
+    <h2>Paste Sensus Lengkap</h2>
+    <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+      Paste list lengkap — parser otomatis extract NORM/Lantai/Kamar/Diagnosis.
+      Nama, TTL, Status di-fetch otomatis dari SIMRS.
+    </p>
+    
+
+    
+    <textarea id="rawInput" placeholder="Paste list lengkap di sini — format apa pun OK, AI bakal parse otomatis.
+
+Contoh format A (structured):
+MOCHIL LANTAI 5
+1. (506.3). Aisya Sidiqia / 1339986 / 11 April 2022 / Leukemia L1 / KJS
+
+Contoh format B (WhatsApp style):
+PICU
+- Alisha Irfan 1690930 20 Sept 2022 Neurofibromatosis Leader
+
+Contoh format C (plain text):
+Aisya di L5 kamar 506 norm 1339986 dx leukemia
+Alisha PICU bed 1 RM 1690930 neuro
+
+...paste apa aja, AI detect otomatis..."></textarea>
+    
+    <div class="btn-group">
+      <button class="btn btn-save" onclick="savePaste()">💾 Save</button>
+      <button class="btn btn-parse" onclick="parseAI()" id="btnParse">🔍 Parse</button>
+      <button class="btn btn-apply" id="btnApply" onclick="applyAndUpdate()">✅ Execute: Update Master + Lab</button>
+    </div>
+    
+    <div id="status"></div>
+    <div id="preview"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Status Terakhir</h2>
+    <div id="lastStatus" style="font-size: 13px; color: #666;">Loading...</div>
+  </div>
+</div>
+
+<script>
+let ParsedData = null;
+
+window.onload = function() {
+  loadStatus();
+  loadSavedPaste();
+};
+
+function loadStatus() {
+  fetch('/api/master/paste-status')
+    .then(r => r.json())
+    .then(d => {
+      let html = '';
+      if (d.last_saved) {
+        html += `<p>📝 Terakhir disave: ${new Date(d.last_saved * 1000).toLocaleString('id-ID')}</p>`;
+      }
+      if (d.last_processed) {
+        html += `<p>✅ Terakhir diproses: ${new Date(d.last_processed * 1000).toLocaleString('id-ID')} (${d.patients_count || '?'} pasien)</p>`;
+      }
+      if (d.cron_next) {
+        html += `<p>⏰ Auto-update berikutnya: ${new Date(d.cron_next * 1000).toLocaleString('id-ID')}</p>`;
+      }
+      if (!html) html = '<p>Belum ada data tersimpan.</p>';
+      document.getElementById('lastStatus').innerHTML = html;
+    })
+    .catch(e => {
+      document.getElementById('lastStatus').innerHTML = '<p style="color:#c62828;">Error loading status.</p>';
+    });
+}
+
+function loadSavedPaste() {
+  fetch('/api/master/paste')
+    .then(r => r.json())
+    .then(d => {
+      if (d.success && d.content) {
+        document.getElementById('rawInput').value = d.content;
+      }
+    })
+    .catch(e => console.log('No saved paste'));
+}
+
+function savePaste() {
+  let text = document.getElementById('rawInput').value.trim();
+  if (!text) { alert('Isi dulu teksnya!'); return; }
+  
+  let status = document.getElementById('status');
+  status.className = 'status info';
+  status.innerHTML = '⏳ Menyimpan...';
+  
+  fetch('/api/master/paste', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: text})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) {
+      status.className = 'status success';
+      status.innerHTML = '✅ Tersimpan! Waktu: ' + new Date(d.saved_at * 1000).toLocaleString('id-ID');
+      loadStatus();
+    } else {
+      status.className = 'status error';
+      status.innerHTML = '❌ Gagal: ' + (d.error || 'unknown');
+    }
+  })
+  .catch(e => {
+    status.className = 'status error';
+    status.innerHTML = '❌ Request error: ' + e;
+  });
+}
+
+function parseAI() {
+  let text = document.getElementById('rawInput').value.trim();
+  if (!text) { alert('Isi dulu teksnya!'); return; }
+  
+  let status = document.getElementById('status');
+  let btn = document.getElementById('btnParse');
+  
+  status.className = 'status info';
+  status.innerHTML = '⏳ Parsing... (regex-based, cepat)';
+  btn.disabled = true;
+  btn.textContent = '⏳ Parsing...';
+  
+fetch('/api/master/parse', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: text})
+  })
+  .then(r => {
+    console.log('Response status:', r.status);
+    console.log('Response headers:', r.headers.get('content-type'));
+    return r.text();
+  })
+  .then(rawText => {
+    console.log('Raw response text (first 500 chars):', rawText.substring(0, 500));
+    
+    btn.disabled = false;
+    btn.textContent = '🤖 Parse dengan AI';
+    
+    let d;
+    try {
+      d = JSON.parse(rawText);
+    } catch (e) {
+      status.className = 'status error';
+      status.innerHTML = '❌ Parse response error: ' + e.message + '<br><pre style="font-size:11px; max-height:200px; overflow:auto;">' + rawText.substring(0, 500) + '</pre>';
+      return;
+    }
+    
+    if (d.success && d.count !== undefined) {
+      status.className = 'status success';
+      status.innerHTML = `✅ Ditemukan <b>${d.count} pasien</b>`;
+      
+      ParsedData = d.patients;
+      
+    } else if (d.success && d.patients) {
+      ParsedData = d.patients;
+      status.className = 'status success';
+      status.innerHTML = `✅ Ditemukan <b>${ParsedData.length} pasien</b>`;
+    } else {
+      status.className = 'status error';
+      status.innerHTML = '❌ Parse gagal: ' + (d.error || 'unknown');
+      return;
+    }
+    
+    let preview = document.getElementById('preview');
+    let html = '<div class="preview"><h3>Preview (20 pertama):</h3><div class="preview-list">';
+    ParsedData.slice(0, 20).forEach((p, i) => {
+      html += `${i+1}. <b>${p.nama}</b> (NORM: ${p.norm})<br>`;
+      html += `   └─ ${p.lantai} ${p.kamar} · ${p.dx} · ${p.status}<br>`;
+    });
+    if (ParsedData.length > 20) {
+      html += `<br>...dan ${ParsedData.length - 20} pasien lainnya.`;
+    }
+    html += '</div></div>';
+    preview.innerHTML = html;
+    
+    document.getElementById('btnApply').disabled = false;
+  })
+  .catch(e => {
+    btn.disabled = false;
+    btn.textContent = '🤖 Parse dengan AI';
+    status.className = 'status error';
+    status.innerHTML = '❌ Request error: ' + e;
+  });
+}
+
+function applyAndUpdate() {
+  let text = document.getElementById('rawInput').value.trim();
+  if (!text) {
+    alert('Paste list dulu!');
+    return;
+  }
+  
+  // Save first, then execute
+  let status = document.getElementById('status');
+  status.className = 'status info';
+  status.innerHTML = '⏳ Saving paste...';
+  
+  // Auto-save
+  fetch('/api/master/paste', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: text})
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success) {
+      status.className = 'status error';
+      status.innerHTML = '❌ Save gagal: ' + d.error;
+      return;
+    }
+    
+    status.innerHTML = '✅ Saved + ⏳ Triggering pipeline...';
+    
+    // Execute: parse .md file + update master + trigger lab pipeline
+    fetch('/api/master/execute', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        filepath: '/tmp/master_paste_raw.txt'
+      })
+    })
+    .then(r => r.text())
+    .then(rawText => {
+      let d;
+      try { d = JSON.parse(rawText); }
+      catch(e) {
+        status.className = 'status error';
+        status.innerHTML = '❌ Response parse error: ' + e.message + '<br><pre>' + rawText.substring(0, 300) + '</pre>';
+        return;
+      }
+      
+      if (d.success) {
+        status.className = 'status success';
+        status.innerHTML = `✅ <b>Pipeline dimulai!</b> Job: ${d.job_id}<br>${d.patients} pasien saved + lab update running<br>Monitor di <a href="/" target="_blank">main report</a> (refresh 10-15 menit)`;
+        loadStatus();
+      } else {
+        status.className = 'status error';
+        status.innerHTML = '❌ Error: ' + (d.error || 'unknown');
+        document.getElementById('btnApply').disabled = false;
+      }
+    })
+    .catch(e => {
+      status.className = 'status error';
+      status.innerHTML = '❌ Request error: ' + e;
+      document.getElementById('btnApply').disabled = false;
+    });
+  })
+  .catch(e => {
+    status.className = 'status error';
+    status.innerHTML = '❌ Save error: ' + e;
+  });
+}
+</script>
+</body>
+</html>

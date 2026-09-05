@@ -1,0 +1,23 @@
+# ===== DATA PASIEN (PHI) — JANGAN PERNAH COMMIT =====
+patients_*.py
+patients_*.pkl
+catatan_hemato*.json
+catatan_hemato/
+Rekap Lab*.html
+6pasien_raw.json
+index_notulensi.*
+*Pasien*.html
+Lantai*.html
+
+# ===== SECRETS =====
+.env
+*.env
+!.env.example
+
+# ===== RUNTIME / CACHE / ARSIP =====
+__pycache__/
+*.pyc
+*.log
+*.bak*
+checkpoints/
+/tmp/
