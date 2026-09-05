@@ -21,3 +21,9 @@ __pycache__/
 *.bak*
 checkpoints/
 /tmp/
+
+# ===== SIRS-WEB =====
+sirs-web/accounts.json
+sirs-web/laporan/
+sirs-web/cache2/
+sirs-web/venv/

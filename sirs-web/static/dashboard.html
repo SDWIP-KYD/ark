@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMRS Web — Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Roboto, Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+  .topbar { background: #1e293b; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; position: sticky; top: 0; }
+  .topbar h1 { font-size: 18px; color: #38bdf8; }
+  .user { font-size: 13px; color: #cbd5e1; }
+  .logout { color: #f87171; text-decoration: none; font-size: 13px; margin-left: 14px; }
+  .wrap { padding: 20px; max-width: 720px; margin: 0 auto; }
+  .card { background: #1e293b; border-radius: 14px; padding: 20px; margin-bottom: 14px; border: 1px solid #334155; }
+  .card h2 { font-size: 16px; margin-bottom: 8px; color: #e2e8f0; }
+  .card p { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+  .badge { display: inline-block; background: #064e3b; color: #6ee7b7; font-size: 11px; padding: 3px 9px; border-radius: 20px; margin-top: 10px; }
+  .soon { opacity: .6; }
+  .btn { display: inline-block; margin-top: 12px; background: #0ea5e9; color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 10px; }
+  .btn:hover { background: #0284c7; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>SIMRS Web</h1>
+  <div><span class="user">👤 {{ user }}</span><a class="logout" href="/api/logout">Keluar</a></div>
+</div>
+<div class="wrap">
+  <div class="card">
+    <h2>✅ Login berhasil</h2>
+    <p>Sesi SIMRS aktif untuk <b>{{ user }}</b>. Koneksi ke SIMRS RSWS tersambung.</p>
+    <span class="badge">Step 1 — Session Ready</span>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Cari No RM & Detail (CPPT / Assesment / Terapi)</h2>
+    <p>Cari pasien, lihat kunjungan, CPPT, dan detail lengkap (anamnesis, fisik, diagnosis, ICD10, konsul) + hasil Lab/Rad/Special.</p>
+    <a class="btn" href="/cppt">Buka CPPT Pasien →</a>
+  </div>
+  <div class="card">
+    <h2>🛏️ Cek Pasien Ruangan</h2>
+    <p>Pilih ruangan (NICU, PICU, ICU, Perawatan Lt. 6/7, PJT, dll) untuk melihat semua pasien aktif di ruangan tersebut — CPPT, Lab, dan Detail tetap bisa dibuka per pasien.</p>
+    <a class="btn" href="/ruangan">Cek Pasien Ruangan →</a>
+  </div>
+  <div class="card">
+    <h2>🧪 Generate Laporan Lab</h2>
+    <p>Paste list pasien (nomor RM terdeteksi otomatis dari teks bebas) → laporan hasil Laboratorium Reguler + Special lengkap per kartu pasien, dengan progress real-time dan export teks.</p>
+    <a class="btn" href="/laporan-lab">Buat Laporan Lab →</a>
+  </div>
+  <div class="card soon">
+    <h2>🔜 Kunjungan Poli by DPJP + Range Waktu</h2>
+    <p>Step 4 — dalam pengembangan.</p>
+  </div>
+</div>
+</body>
+</html>

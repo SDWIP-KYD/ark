@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMRS Web — Login</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Roboto, Arial, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .card { background: #1e293b; border-radius: 16px; padding: 28px; width: 100%; max-width: 420px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+  h1 { font-size: 22px; margin-bottom: 4px; color: #38bdf8; }
+  .sub { font-size: 13px; color: #94a3b8; margin-bottom: 22px; }
+  label { display: block; font-size: 13px; color: #cbd5e1; margin: 14px 0 6px; }
+  select, input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 15px; }
+  .toggle { display: flex; gap: 8px; margin: 16px 0 4px; }
+  .toggle button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: #94a3b8; font-size: 14px; cursor: pointer; }
+  .toggle button.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; font-weight: 600; }
+  .manual-fields { display: none; }
+  .btn { width: 100%; margin-top: 22px; padding: 14px; border: none; border-radius: 10px; background: #38bdf8; color: #0f172a; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { opacity: .5; }
+  .err { color: #f87171; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .hint { font-size: 11px; color: #64748b; margin-top: 16px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>SIMRS Web</h1>
+  <div class="sub">Pilih akun dokter untuk akses data RS</div>
+
+  <div class="toggle">
+    <button id="btnSelect" class="active" onclick="setMode('select')">Pilih Akun</button>
+    <button id="btnManual" onclick="setMode('manual')">Manual</button>
+  </div>
+
+  <div id="selectField">
+    <label>Akun Dokter</label>
+    <select id="accountIdx"></select>
+  </div>
+
+  <div id="manualField" class="manual-fields">
+    <label>Username SIMRS</label>
+    <input id="manualLogin" placeholder="username" autocomplete="off">
+    <label>Password</label>
+    <input id="manualPass" type="password" placeholder="password" autocomplete="off">
+  </div>
+
+  <button class="btn" id="loginBtn" onclick="doLogin()">Masuk</button>
+  <div class="err" id="errbox"></div>
+  <div class="hint">Koneksi terenkripsi via tunnel RS · sesi 8 jam</div>
+</div>
+
+<script>
+const accounts = {{ accounts | tojson }};
+let mode = 'select';
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnSelect').classList.toggle('active', m === 'select');
+  document.getElementById('btnManual').classList.toggle('active', m === 'manual');
+  document.getElementById('selectField').style.display = m === 'select' ? 'block' : 'none';
+  document.getElementById('manualField').style.display = m === 'manual' ? 'block' : 'none';
+}
+
+// populate dropdown
+const sel = document.getElementById('accountIdx');
+accounts.forEach((a, i) => {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = a.label;
+  sel.appendChild(o);
+});
+
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const err = document.getElementById('errbox');
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Masuk...';
+  let body;
+  if (mode === 'select') {
+    body = { mode: 'select', account_index: sel.value };
+  } else {
+    body = { mode: 'manual', login: document.getElementById('manualLogin').value, password: document.getElementById('manualPass').value };
+  }
+  try {
+    const r = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (j.ok) { window.location.href = '/'; }
+    else { err.textContent = j.error || 'Login gagal'; }
+  } catch (e) { err.textContent = 'Network error: ' + e.message; }
+  btn.disabled = false; btn.textContent = 'Masuk';
+}
+</script>
+</body>
+</html>

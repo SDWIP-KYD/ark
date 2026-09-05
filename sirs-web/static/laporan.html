@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMRS Web — Laporan Lab</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: { colors: {
+    border: "hsl(214.3 31.8% 91.4%)", input: "hsl(214.3 31.8% 91.4%)", ring: "hsl(221.2 83.2% 53.3%)",
+    background: "hsl(0 0% 100%)", foreground: "hsl(222.2 84% 4.9%)",
+    primary: { DEFAULT: "hsl(221.2 83.2% 53.3%)", foreground: "hsl(210 40% 98%)" },
+    muted: { DEFAULT: "hsl(210 40% 96.1%)", foreground: "hsl(215.4 16.3% 46.9%)" },
+    destructive: { DEFAULT: "hsl(0 84.2% 60.2%)", foreground: "hsl(210 40% 98%)" },
+    card: { DEFAULT: "hsl(0 0% 100%)", foreground: "hsl(222.2 84% 4.9%)" },
+  }}}
+}
+</script>
+<style type="text/tailwindcss">
+  @layer components {
+    .btn { @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none; }
+    .btn-h { @apply h-9 px-4 py-2; }
+    .btn-primary { @apply bg-primary text-primary-foreground shadow hover:bg-primary/90; }
+    .btn-outline { @apply border border-input bg-card shadow-sm hover:bg-muted hover:text-foreground; }
+    .btn-ghost { @apply hover:bg-muted hover:text-foreground; }
+    .btn-destructive { @apply bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90; }
+    .btn-icon { @apply h-8 w-8 p-0 rounded-md; }
+    .input { @apply flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50; }
+    .card { @apply rounded-xl border border-border bg-card text-card-foreground shadow-sm; }
+    .badge { @apply inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-semibold; }
+    .label { @apply text-sm font-semibold leading-none tracking-tight; }
+  }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] > summary .chev { transform: rotate(90deg); }
+  .chev { transition: transform .15s; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); opacity: 0; transition: all .3s; z-index: 9999; pointer-events: none; }
+  #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  @media print {
+    header, aside, #toolbar, #progressWrap { display: none !important; }
+    main { padding: 0 !important; max-width: none !important; }
+    .card { break-inside: avoid; box-shadow: none !important; }
+    details > div, details table, details .kunj-body { display: block !important; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 text-foreground min-h-screen">
+
+<!-- Topbar -->
+<header class="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
+  <div class="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
+    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">S</div>
+    <h1 class="text-[15px] font-semibold tracking-tight">Laporan Laboratorium</h1>
+    <span id="pageMode" class="hidden sm:inline text-xs text-muted-foreground">massal dari list NRM</span>
+    <div class="ml-auto flex items-center gap-3">
+      <span id="loginBadge" class="text-xs text-muted-foreground">👤 …</span>
+      <a href="/" class="text-sm font-medium text-primary hover:underline">← Dashboard</a>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto grid max-w-7xl grid-cols-1 gap-6 p-4 lg:grid-cols-[360px_1fr] lg:p-6">
+
+  <!-- ===== Sidebar kiri: daftar pasien terkelola ===== -->
+  <aside class="lg:sticky lg:top-20 self-start space-y-4">
+    <div class="card">
+      <div class="flex items-center justify-between border-b border-border px-4 py-3">
+        <span class="label">Daftar Pasien</span>
+        <span id="patientCount" class="badge bg-muted text-muted-foreground">0</span>
+      </div>
+      <div class="p-4 space-y-3">
+        <!-- tambah pasien -->
+        <div>
+          <label class="label mb-1.5 block text-xs text-muted-foreground">TAMBAH PASIEN (boleh banyak, pisahkan koma / spasi / Enter)</label>
+          <textarea id="addInput" rows="2" class="input font-mono text-xs resize-y" placeholder="1691507, 1714994, 1689801"></textarea>
+          <button class="btn btn-primary mt-2 w-full btn-h" onclick="addPatients()">＋ Tambah ke Daftar</button>
+        </div>
+        <!-- paste list bebas -->
+        <details class="rounded-lg border border-border">
+          <summary class="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50">📋 Atau tempel teks bebas (RM otomatis dideteksi)…</summary>
+          <div class="border-t border-border p-3 space-y-2">
+            <textarea id="listInput" rows="5" class="input font-mono text-xs" placeholder="RM 1691507 BY NY WAHYUNI&#10;1689801 RAINI…" oninput="updateDetected()"></textarea>
+            <div id="detectedInfo" class="min-h-[18px] text-xs text-muted-foreground"></div>
+            <button class="btn btn-outline w-full btn-h" onclick="addFromFreeText()">＋ Tambahkan yang Terdeteksi</button>
+          </div>
+        </details>
+        <!-- list item -->
+        <div id="patientList" class="space-y-1.5 max-h-[320px] overflow-y-auto pr-1"></div>
+        <div class="flex gap-2 pt-1">
+          <button id="genBtn" class="btn btn-primary flex-1 btn-h" onclick="startGenerate()">🧪 Generate Laporan</button>
+          <button class="btn btn-outline btn-h" onclick="clearAll()" title="Kosongkan daftar">Clear</button>
+        </div>
+        <p class="text-[11px] leading-relaxed text-muted-foreground">Maks 60 pasien. Data diambil per pasien: identitas, ruangan/kamar, DPJP, lab reguler + special, detail klinis.</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== Kolom hasil ===== -->
+  <section class="min-w-0 space-y-4">
+    <!-- progress -->
+    <div id="progressWrap" class="card hidden p-4">
+      <div class="mb-2 flex items-center justify-between text-sm font-medium">
+        <span id="progLabel">Memulai…</span><span id="progPct" class="text-muted-foreground tabular-nums"></span>
+      </div>
+      <div class="h-2 overflow-hidden rounded-full bg-muted">
+        <div id="progFill" class="h-full w-0 rounded-full bg-primary transition-all duration-300"></div>
+      </div>
+    </div>
+    <!-- toolbar -->
+    <div id="toolbar" class="hidden flex-wrap items-center gap-2">
+      <button id="refreshAllBtn" class="btn btn-outline btn-h" onclick="refreshAll()">🔄 Refresh Semua</button>
+      <div id="comboRuangan" class="relative w-56">
+        <input id="ruanganFilterInput" class="input h-9 pl-8" placeholder="Filter ruangan…" autocomplete="off"
+               onfocus="openCombo()" oninput="renderCb()" onkeydown="comboKeys(event)">
+        <svg class="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><path d="m21 21-4.3-4.3" stroke-width="2"/></svg>
+        <div id="ruanganList" class="absolute z-30 mt-1 hidden max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-white shadow-lg"></div>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button class="btn btn-outline btn-h" onclick="copyReport()">📄 Copy</button>
+        <button class="btn btn-outline btn-h" onclick="downloadReport()">⬇️ .txt</button>
+        <button class="btn btn-outline btn-h" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+    <div id="cards" class="space-y-4">
+      <div id="emptyState" class="card flex flex-col items-center justify-center gap-2 p-16 text-center text-muted-foreground">
+        <span class="text-3xl">🧪</span>
+        <p class="text-sm">Tambahkan pasien di panel kiri, lalu klik <b class="text-foreground">Generate Laporan</b>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="rounded-full bg-zinc-800 px-4 py-2 text-sm text-white shadow-lg"></div>
+
+<script>
+let jobId = "", es = null;
+let queue = [];              // RM yang akan di-generate (sidebar list)
+let allCards = [];           // [[norm, card]] hasil
+let currentRoomFilter = "";
+
+const $ = id => document.getElementById(id);
+function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function showToast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+
+// ---------- sidebar patient list ----------
+function renderQueue(){
+  $('patientCount').textContent = queue.length;
+  $('patientList').innerHTML = queue.map(n => `
+    <div class="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm">
+      <span class="font-mono text-xs text-muted-foreground">#</span>
+      <span class="font-medium tabular-nums">${esc(n)}</span>
+      <button class="btn btn-ghost btn-icon ml-auto text-destructive hover:bg-red-50" title="Hapus dari daftar" onclick="removeFromQueue('${esc(n)}')">✕</button>
+    </div>`).join('') || '<p class="py-2 text-center text-xs text-muted-foreground">Belum ada pasien.</p>';
+}
+function parseNorms(str){ return [...new Set((str||'').split(/[\s,;]+/).map(x=>x.trim()).filter(x=>/^\d{5,12}$/.test(x)))]; }
+function addPatients(){
+  const vals = parseNorms($('addInput').value);
+  if(!vals.length){ showToast('Tidak ada nomor RM valid (5–12 digit)'); return; }
+  let added=0;
+  for(const v of vals){ if(!queue.includes(v)){ queue.push(v); added++; } }
+  $('addInput').value='';
+  renderQueue();
+  showToast(added ? `${added} pasien ditambahkan` : 'Semua sudah ada di daftar');
+}
+function extractNrm(text){
+  const generic=[...text.matchAll(/(?<![A-Za-z0-9])(\d{5,12})(?![A-Za-z0-9])/g)].map(m=>m[1]);
+  const explicit=[...text.matchAll(/(?:norm|\bmr\b|no\.?\s*rm)[\s.:#\/-]*(\d{5,12})/gi)].map(m=>m[1]);
+  const seen=new Set(),out=[];
+  for(const n of explicit.concat(generic.filter(g=>!explicit.includes(g)))){ if(!seen.has(n)){seen.add(n);out.push(n);} }
+  return out;
+}
+function updateDetected(){
+  const norms=extractNrm($('listInput').value);
+  $('detectedInfo').innerHTML = $('listInput').value.trim()
+    ? (norms.length ? `<b class="text-foreground">${norms.length} RM terdeteksi</b>: ${esc(norms.slice(0,8).join(', '))}${norms.length>8?' …':''}`
+       : '<span class="text-orange-600">Tidak ada RM terdeteksi — pakai format "RM 123456" atau angka berdiri sendiri.</span>') : '';
+}
+function addFromFreeText(){
+  const norms=extractNrm($('listInput').value);
+  if(!norms.length){ showToast('Tidak ada RM valid di teks'); return; }
+  let added=0;
+  for(const n of norms){ if(!queue.includes(n)){ queue.push(n); added++; } }
+  $('listInput').value=''; updateDetected();
+  renderQueue();
+  showToast(`${added} pasien ditambahkan (${norms.length-added} duplikat dilewati)`);
+}
+function removeFromQueue(n){ queue=queue.filter(x=>x!==n); renderQueue(); }
+
+// ---------- generate ----------
+async function startGenerate(){
+  if(!queue.length){ showToast('Tambahkan pasien dulu'); return; }
+  if(queue.length>60){ showToast('Maks 60 pasien'); return; }
+  stopStream(); resetView();
+  $('progressWrap').classList.remove('hidden');
+  setProgress(0, queue.length);
+  $('genBtn').disabled=true;
+  try{
+    const r=await fetch('/api2/laporan-lab/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'', extra_norms: queue})});
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'Gagal start');
+    jobId=j.job_id;
+    history.replaceState(null,'','/laporan-lab/'+jobId);
+    listenStream(jobId,j.total);
+  }catch(e){
+    $('progressWrap').classList.add('hidden'); $('genBtn').disabled=false;
+    $('cards').innerHTML=`<div class="card p-10 text-center text-sm text-destructive">❌ ${esc(e.message)}</div>`;
+  }
+}
+function stopStream(){ if(es){es.close();es=null;} }
+function resetView(){ stopStream(); allCards=[]; currentRoomFilter=''; $('cards').innerHTML=''; $('toolbar').classList.add('hidden'); }
+function setProgress(d,t){ $('progLabel').textContent=`${d} / ${t} pasien selesai ambil data`; $('progPct').textContent=t?Math.round(d/t*100)+'%':''; $('progFill').style.width=(t?d/t*100:0)+'%'; }
+
+function listenStream(id,total){
+  es=new EventSource('/api2/laporan-lab/stream/'+id);
+  es.onmessage=(ev)=>{
+    let m; try{m=JSON.parse(ev.data);}catch(_){return;}
+    if(m.event==='card'){ upsertCard(m.card); setProgress(m.done,m.total); }
+    else if(m.event==='done'){
+      stopStream(); setProgress(m.done,m.total);
+      $('progLabel').textContent=`✅ Selesai — ${m.done} pasien`;
+      $('genBtn').disabled=false; $('toolbar').classList.remove('hidden'); $('toolbar').classList.add('flex');
+      rebuildRooms(); applyRoomFilter();
+    } else if(m.event==='error'){
+      stopStream(); $('genBtn').disabled=false;
+      $('cards').insertAdjacentHTML('beforeend',`<div class="card p-10 text-center text-sm text-destructive">❌ ${esc(m.error)}</div>`);
+    }
+  };
+}
+
+// ---------- snapshot revisit ----------
+async function loadSnapshot(id){
+  $('pageMode').textContent='tersimpan · berlaku 48 jam';
+  try{
+    const r=await fetch('/api2/laporan-lab/snapshot/'+id); const j=await r.json();
+    if(!j.ok){ $('cards').innerHTML=`<div class="card p-10 text-center text-sm text-destructive">❌ ${esc(j.error)}</div>`; return; }
+    jobId=id; const snap=j.snapshot;
+    for(const n of snap.order){ if(snap.cards[n]) upsertCard(snap.cards[n], true); }
+    $('toolbar').classList.remove('hidden'); $('toolbar').classList.add('flex');
+    rebuildRooms(); applyRoomFilter();
+    $('progressWrap').classList.remove('hidden');
+    setProgress(snap.done,snap.total);
+    if(!snap.finished){ listenStream(id,snap.total); }
+    else $('progLabel').textContent=`✅ Selesai — ${snap.done} pasien`;
+  }catch(e){ $('cards').innerHTML=`<div class="card p-10 text-center text-sm text-destructive">❌ ${esc(e.message)}</div>`; }
+}
+
+// ---------- cards ----------
+function upsertCard(c, keepScroll){
+  const i=allCards.findIndex(([n])=>n===c.norm);
+  if(i>=0) allCards[i]=[c.norm,c]; else allCards.push([c.norm,c]);
+  const old=$('pc_'+c.norm); const scrollY=keepScroll?window.scrollY:0;
+  if(old) old.remove();
+  renderCard(c, keepScroll);
+  if(keepScroll) window.scrollTo(0,scrollY);
+  rebuildRooms(); applyRoomFilter();
+}
+
+function metaLine(c){
+  const lokasi=[c.ruangan,c.kamar].filter(Boolean).join(' · ');
+  let s=`<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+    <span class="inline-flex items-center gap-1"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-width="2" d="M3 21V7l9-4 9 4v14M3 21h18M7 21v-6h10v6"/></svg>${esc(lokasi||'—')}</span>
+    <span class="inline-flex items-center gap-1"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>${esc(c.dpjp||'—')}</span>`;
+  if(c.tgl_lahir) s+=`<span>TTL ${esc(c.tgl_lahir)}${c.jk?' ('+esc(c.jk)+')':''}</span>`;
+  if(c.masuk_aktif) s+=`<span>🩺 aktif sejak ${esc(c.masuk_aktif)}</span>`;
+  s+='</div>';
+  if(c.error) s+=`<div class="mt-1 text-xs font-semibold text-destructive">⚠️ ${esc(c.error)}</div>`;
+  return s;
+}
+
+function cardActions(c){
+  return `<div class="flex shrink-0 items-center gap-1.5">
+    <button id="rf_${esc(c.norm)}" class="btn btn-outline btn-icon" title="Muat ulang data pasien ini" onclick="event.stopPropagation();refreshOne('${esc(c.norm)}')">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M5.6 9A7.5 7.5 0 0 1 19 10.5M18.4 15A7.5 7.5 0 0 1 5 13.5"/></svg></button>
+    <button class="btn btn-outline btn-icon text-destructive hover:border-destructive/40 hover:bg-red-50" title="Hapus dari laporan" onclick="event.stopPropagation();deleteCard('${esc(c.norm)}')">
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/></svg></button>
+    <button class="btn btn-ghost btn-icon" title="Lipkat / buka" onclick="event.stopPropagation();toggleCard('${esc(c.norm)}')">
+      <svg id="cv_${esc(c.norm)}" class="h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6"/></svg></button>
+  </div>`;
+}
+
+function cardBodyHtml(c){
+  let body='';
+  if(c.lab_regular&&c.lab_regular.length){
+    body+=`<details open class="border-t border-border">
+      <summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold hover:bg-muted/50"><svg class="chev h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>🧪 Laboratorium Reguler
+      <span class="ml-auto badge bg-muted text-muted-foreground font-normal">${c.lab_regular.length} kunjungan${c.lab_truncated?', +'+c.lab_truncated+' lama':''}</span></summary>
+      <div class="px-4 pb-3 space-y-2">`;
+    for(const pn of c.lab_regular){
+      const rows=(pn.items||[]).map(it=>`<tr class="border-b border-border/60 last:border-0"><td class="py-1.5 pr-2">${esc(it.nama)}</td><td class="py-1.5 pr-2 text-right font-semibold tabular-nums">${esc(it.hasil)}</td><td class="py-1.5 pr-2 text-muted-foreground">${esc(it.satuan)}</td><td class="py-1.5 text-muted-foreground tabular-nums">${esc(it.normal)}</td></tr>`).join('');
+      body+=`<details class="kunj rounded-lg border border-border">
+        <summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] hover:bg-muted/50"><svg class="chev h-3 w-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>
+        <span class="font-semibold tabular-nums">${esc((pn.tanggal||'').slice(0,10))}</span><span class="truncate">${esc(pn.jenis)}</span>
+        <span class="ml-auto badge bg-muted text-muted-foreground font-normal">${(pn.items||[]).length} item</span></summary>
+        <div class="kunj-body px-3 pb-2">${rows?`<table class="w-full text-xs"><thead><tr class="text-left text-[10px] uppercase tracking-wide text-muted-foreground"><th class="py-1">Parameter</th><th class="py-1 text-right">Hasil</th><th class="py-1">Satuan</th><th class="py-1">Rujukan</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="py-1 text-xs text-muted-foreground">Tidak ada item hasil</p>'}</div>
+      </details>`;
+    }
+    body+=`</div></details>`;
+  }
+  if(c.lab_special&&c.lab_special.length){
+    body+=`<details class="border-t border-border"><summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold hover:bg-muted/50"><svg class="chev h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>🔬 Laboratorium Special<span class="ml-auto badge bg-muted text-muted-foreground font-normal">${c.lab_special.length}</span></summary><div class="divide-y divide-border">`;
+    for(const sp of c.lab_special){
+      const det=Object.entries(sp.detail||{}).map(([k,v])=>`${k}: ${v}`).join('\n');
+      body+=`<div class="px-4 py-3 text-[13px]">
+        <div class="flex items-center gap-2"><span class="badge bg-blue-50 text-blue-700">${esc(sp.jenis)}</span><b class="text-xs truncate">${esc(sp.jaringan||'')}</b><span class="ml-auto text-xs text-muted-foreground tabular-nums">${esc(sp.tanggal||'')}</span></div>
+        ${sp.kesimpulan?`<p class="mt-1.5 whitespace-pre-wrap leading-relaxed">${esc(sp.kesimpulan)}</p>`:''}
+        ${det?`<details class="mt-1.5"><summary class="cursor-pointer text-xs font-medium text-primary">Detail lengkap</summary><pre class="mt-1 whitespace-pre-wrap rounded-lg bg-muted/60 p-2.5 text-xs leading-relaxed text-muted-foreground">${esc(det)}</pre></details>`:''}
+      </div>`;
+    }
+    body+=`</div></details>`;
+  }
+  if(c.kunjungan_aktif){
+    body+=`<details data-dtl="${esc(c.norm)}" class="border-t border-border"><summary class="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-semibold hover:bg-muted/50"><svg class="chev h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>🔍 Detail Klinis<span class="ml-auto text-xs font-normal text-muted-foreground">klik untuk muat</span></summary><div class="dtl-body px-4 pb-3"><p class="text-xs text-muted-foreground">Memuat…</p></div></details>`;
+  }
+  if(!body) body='<p class="border-t border-border px-4 py-4 text-sm text-muted-foreground">Tidak ada data.</p>';
+  return body;
+}
+
+function renderCard(c, collapsedDefault){
+  const wrap=document.createElement('div');
+  wrap.id='pc_'+c.norm;
+  wrap.className='card overflow-visible'+(collapsedDefault?'':'');
+  wrap.innerHTML=`
+    <div class="flex items-start gap-3 p-4">
+      <div class="min-w-0 flex-1 cursor-pointer" onclick="toggleCard('${esc(c.norm)}')">
+        <h3 class="truncate text-[15px] font-bold tracking-tight">${esc(c.nama||'(tidak ditemukan)')}
+          <span class="ml-1 align-middle font-mono text-xs font-medium text-muted-foreground">RM ${esc(c.norm)}</span></h3>
+        ${metaLine(c)}
+      </div>
+      ${cardActions(c)}
+    </div>
+    <div id="cb_${esc(c.norm)}" ${collapsedDefault?'class="hidden"':''}>${cardBodyHtml(c)}</div>`;
+  $('cards').appendChild(wrap);
+  wireLazyDetail(wrap,c);
+}
+function toggleCard(norm){
+  const b=$('cb_'+norm), cv=$('cv_'+norm);
+  if(!b) return;
+  b.classList.toggle('hidden');
+  if(cv) cv.style.transform = b.classList.contains('hidden') ? 'rotate(-90deg)' : '';
+}
+function deleteCard(norm){
+  if(!confirm('Hapus pasien RM '+norm+' dari laporan?')) return;
+  allCards=allCards.filter(([n])=>n!==norm);
+  $('pc_'+norm)?.remove();
+  rebuildRooms(); applyRoomFilter();
+  showToast('RM '+norm+' dihapus');
+}
+async function refreshOne(norm){
+  const btn=$('rf_'+norm); if(btn) btn.disabled=true;
+  try{
+    const r=await fetch('/api2/laporan-lab/refresh-one',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,norm})});
+    const j=await r.json(); if(!j.ok) throw new Error(j.error||'Gagal');
+    upsertCard(j.card,true); showToast('RM '+norm+' dimuat ulang');
+  }catch(e){ showToast('Refresh gagal: '+e.message); }
+  finally{ if(btn) btn.disabled=false; }
+}
+async function refreshAll(){
+  if(!allCards.length){ showToast('Belum ada pasien'); return; }
+  if(!confirm('Muat ulang SEMUA '+allCards.length+' pasien (~'+Math.ceil(allCards.length*15/60)+' menit)?')) return;
+  $('refreshAllBtn').disabled=true;
+  $('progressWrap').classList.remove('hidden');
+  let done=0; setProgress(0,allCards.length);
+  for(const [norm] of [...allCards]){
+    try{
+      const r=await fetch('/api2/laporan-lab/refresh-one',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,norm})});
+      const j=await r.json(); if(j.ok) upsertCard(j.card,true);
+    }catch(e){}
+    done++; setProgress(done,allCards.length);
+  }
+  $('progLabel').textContent=`✅ Refresh selesai — ${done} pasien`;
+  $('refreshAllBtn').disabled=false;
+}
+
+// ---------- room filter combobox ----------
+const cbState={items:[],hl:-1,shown:[]};
+function rebuildRooms(){
+  const rooms=new Map();
+  for(const [,c] of allCards){ const r=c.ruangan||'(tanpa ruangan)'; rooms.set(r,(rooms.get(r)||0)+1); }
+  const sorted=[...rooms.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  cbState.items=[{id:'__all__',label:`Semua Ruangan (${allCards.length})`}].concat(sorted.map(([r,n])=>({id:r,label:r,sub:n+' pasien'})));
+  if(currentRoomFilter && !sorted.some(([r])=>r===currentRoomFilter)){ currentRoomFilter=''; $('ruanganFilterInput').value=''; }
+}
+function renderCb(){
+  const q=$('ruanganFilterInput').value.trim().toLowerCase();
+  const items=cbState.items.filter(it=>!q||it.label.toLowerCase().includes(q));
+  cbState.shown=items;
+  $('ruanganList').innerHTML = items.length
+    ? items.map((it,i)=>`<div class="cursor-pointer px-3 py-2 text-sm hover:bg-muted ${i===cbState.hl?'bg-muted':''}" onmousedown="pickCb('${esc(String(it.id))}')">${esc(it.label)}${it.sub?` <span class="text-xs text-muted-foreground">· ${esc(it.sub)}</span>`:''}</div>`).join('')
+    : '<div class="px-3 py-2 text-xs text-muted-foreground">Tidak ada yang cocok</div>';
+  $('ruanganList').classList.remove('hidden');
+}
+function openCombo(){ cbState.hl=-1; renderCb(); }
+function closeCombo(){ $('ruanganList').classList.add('hidden'); }
+function comboKeys(ev){
+  if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ ev.preventDefault(); cbState.hl=Math.max(-1,Math.min(cbState.shown.length-1,cbState.hl+(ev.key==='ArrowDown'?1:-1))); renderCb(); }
+  else if(ev.key==='Enter'){ ev.preventDefault(); const p=cbState.shown[Math.max(0,cbState.hl)]; if(p) pickCb(String(p.id)); }
+  else if(ev.key==='Escape') closeCombo();
+}
+function pickCb(id){
+  closeCombo();
+  const it=cbState.items.find(x=>String(x.id)===id); if(!it) return;
+  $('ruanganFilterInput').value = it.id==='__all__' ? '' : it.label;
+  currentRoomFilter = it.id==='__all__' ? '' : it.id;
+  applyRoomFilter();
+}
+document.addEventListener('click',(e)=>{ const w=$('comboRuangan'); if(w&&!w.contains(e.target)) closeCombo(); });
+function applyRoomFilter(){
+  for(const [norm,c] of allCards){
+    const el=$('pc_'+norm); if(!el) continue;
+    el.style.display = (!currentRoomFilter || (c.ruangan||'(tanpa ruangan)')===currentRoomFilter) ? '' : 'none';
+  }
+}
+
+// ---------- lazy detail klinis ----------
+function wireLazyDetail(wrap,c){
+  const d=wrap.querySelector('details[data-dtl]'); if(!d) return;
+  d.addEventListener('toggle', async ()=>{
+    if(!d.open||d.dataset.loaded) return; d.dataset.loaded='1';
+    const box=d.querySelector('.dtl-body');
+    try{
+      const url='/api2/detail?kunjungan='+encodeURIComponent(c.kunjungan_aktif)+(c.nopen_aktif?'&nopen='+encodeURIComponent(c.nopen_aktif):'')+'&norm='+encodeURIComponent(c.norm);
+      const r=await fetch(url); const dd=await r.json();
+      if(!dd.ok){ box.innerHTML=`<p class="text-xs text-destructive">${esc(dd.error||'Gagal memuat')}</p>`; return; }
+      let html='';
+      const secs=[['Keluhan Utama',dd.keluhan_utama],['Riwayat Penyakit Sekarang',dd.riwayat_penyakit_sekarang],['Riwayat',dd.riwayat],['Pemeriksaan Fisik',dd.pemeriksaan_fisik],['Rencana Terapi',dd.rencana_terapi],['Penilaian Diagnosis',dd.penilaian_diagnosis]];
+      secs.forEach((s,i)=>{ if(s[1]&&s[1].trim()){
+        html+=`<details ${i===0?'open':''} class="mb-1.5 rounded-lg border border-border"><summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted/50"><svg class="chev h-3 w-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>${esc(s[0])}</summary><p class="whitespace-pre-wrap px-3 pb-2.5 text-[13px] leading-relaxed">${esc(s[1])}</p></details>`; }});
+      if(dd.icd10&&dd.icd10.length){
+        html+=`<details class="mb-1.5 rounded-lg border border-border"><summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted/50"><svg class="chev h-3 w-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>Diagnosis (ICD-10)</summary><div class="px-3 pb-2">${dd.icd10.map(i=>`<div class="py-0.5 text-[13px]"><span class="font-mono text-xs font-bold text-primary">${esc(i.kode||'-')}</span> ${esc(i.diagnosa||'')}${i.utama?' ⭐':''}</div>`).join('')}</div></details>`;
+      }
+      if(dd.konsul&&dd.konsul.length){
+        html+=`<details class="rounded-lg border border-border"><summary class="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted/50"><svg class="chev h-3 w-3 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 6 6 6-6 6"/></svg>Konsul (${dd.konsul.length})</summary><div class="px-3 pb-2 space-y-2">${dd.konsul.map(k=>`<div class="text-[13px]"><b class="tabular-nums">${esc(k.tanggal||'')}</b> → ${esc(k.tujuan||'')} ${k.jawaban?'✅':'⏳'}<div class="text-muted-foreground">${esc((k.permintaan||'').slice(0,200))}</div>${k.jawaban?`<div class="text-muted-foreground/80 italic">Jawaban: ${esc(String(k.jawaban).slice(0,200))}</div>`:''}</div>`).join('')}</div></details>`;
+      }
+      box.innerHTML=html||'<p class="text-xs text-muted-foreground">Tidak ada detail.</p>';
+    }catch(e){ box.innerHTML=`<p class="text-xs text-destructive">Error: ${esc(e.message)}</p>`; }
+  });
+}
+
+// ---------- export ----------
+function buildReportText(){
+  let out=['LAPORAN HASIL LABORATORIUM','Dibuat: '+new Date().toLocaleString('id-ID'),'Jumlah pasien: '+allCards.length,'='.repeat(70)];
+  allCards.forEach(([n,c],i)=>{
+    out.push('', `[${i+1}] ${c.nama||'(tidak ditemukan)'} / RM ${c.norm}`, `Ruangan: ${c.ruangan||'—'}${c.kamar?' / '+c.kamar:''} | DPJP: ${c.dpjp||'—'}`);
+    if(c.error) out.push('CATATAN: '+c.error);
+    if((c.lab_regular||[]).length){ out.push('--- Laboratorium Reguler ---');
+      for(const pn of c.lab_regular){ out.push(`* ${(pn.tanggal||'').slice(0,10)} — ${pn.jenis}`);
+        for(const it of (pn.items||[])) out.push(`    ${it.nama}: ${it.hasil} ${it.satuan}${it.normal?'  (rujukan: '+it.normal+')':''}`); } }
+    if((c.lab_special||[]).length){ out.push('--- Laboratorium Special ---');
+      for(const sp of c.lab_special){ out.push(`* ${(sp.tanggal||'').slice(0,10)} — [${sp.jenis}] ${sp.jaringan||''}`);
+        if(sp.kesimpulan) out.push('    Kesimpulan: '+sp.kesimpulan);
+        for(const [k,v] of Object.entries(sp.detail||{})) out.push(`    ${k}: ${String(v).replace(/\n/g,' | ')}`); } }
+    if(!(c.lab_regular||[]).length&&!(c.lab_special||[]).length&&c.status==='done') out.push('(tidak ada hasil laboratorium)');
+    out.push('-'.repeat(70));
+  });
+  return out.join('\n');
+}
+function copyReport(){ navigator.clipboard.writeText(buildReportText()).then(()=>showToast('Laporan disalin')).catch(()=>showToast('Gagal menyalin')); }
+function downloadReport(){ const b=new Blob([buildReportText()],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='laporan-lab-'+(jobId||Date.now())+'.txt'; a.click(); showToast('File didownload'); }
+function clearAll(){
+  stopStream(); resetView(); queue=[]; renderQueue();
+  $('listInput').value=''; $('addInput').value=''; $('detectedInfo').innerHTML='';
+  $('progressWrap').classList.add('hidden'); $('genBtn').disabled=false;
+  $('cards').innerHTML='<div id="emptyState" class="card flex flex-col items-center justify-center gap-2 p-16 text-center text-muted-foreground"><span class="text-3xl">🧪</span><p class="text-sm">Tambahkan pasien di panel kiri, lalu klik <b class="text-foreground">Generate Laporan</b>.</p></div>';
+  history.replaceState(null,'','/laporan-lab');
+}
+
+fetch('/api/me').then(r=>r.json()).then(j=>{ if(j.ok) $('loginBadge').textContent='👤 '+j.user; }).catch(()=>{});
+renderQueue();
+(function(){ const m=location.pathname.match(/^\/laporan-lab\/([0-9a-f-]{4,16})$/); if(m) loadSnapshot(m[1]); })();
+</script>
+</body>
+</html>

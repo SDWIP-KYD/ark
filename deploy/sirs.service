@@ -1,0 +1,16 @@
+[Unit]
+Description=SIMRS Web UI (sirs.kay.web.id) :8099
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/sirs
+ExecStart=/opt/sirs/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8099 --workers 1
+Restart=always
+RestartSec=3
+User=ubuntu
+Environment=PORT=8099
+
+[Install]
+WantedBy=multi-user.target

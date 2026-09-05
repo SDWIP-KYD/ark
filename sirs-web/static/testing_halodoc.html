@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMRS Web — CPPT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #00aa5b;
+    --green-dark: #008a4a;
+    --green-light: #e6f7ef;
+    --blue: #0a7be0;
+    --gray-50: #f7f9fb;
+    --gray-100: #eef2f6;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-500: #64748b;
+    --gray-700: #334155;
+    --gray-900: #0f172a;
+    --white: #ffffff;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--gray-50); color: var(--gray-900); font-size: 14px; line-height: 1.5; }
+  .topbar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 10px 16px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+  .topbar h1 { font-size: 16px; font-weight: 700; color: var(--green-dark); }
+  .topbar .back { color: var(--gray-500); text-decoration: none; font-size: 13px; }
+  .topbar .logo { width: 32px; height: 32px; background: var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; }
+  .tabs { display: flex; background: var(--white); border-bottom: 1px solid var(--gray-200); position: sticky; top: 53px; z-index: 90; }
+  .tabs button { flex: 1; padding: 12px; border: none; background: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabs button.active { color: var(--green-dark); border-bottom-color: var(--green); }
+  .container { display: flex; min-height: calc(100vh - 106px); }
+  .sidebar { width: 320px; background: var(--white); border-right: 1px solid var(--gray-200); overflow-y: auto; flex-shrink: 0; }
+  .sidebar .search { padding: 16px; border-bottom: 1px solid var(--gray-100); position: sticky; top: 0; background: var(--white); z-index: 10; }
+  .sidebar .search input { width: 100%; padding: 10px 14px; border: 1px solid var(--gray-200); border-radius: 10px; font-family: inherit; font-size: 14px; outline: none; }
+  .sidebar .search input:focus { border-color: var(--green); }
+  .sidebar .search button { width: 100%; margin-top: 8px; padding: 10px; background: var(--green); color: white; border: none; border-radius: 10px; font-family: inherit; font-weight: 600; cursor: pointer; }
+  .sidebar .search button:disabled { opacity: .6; }
+  .patient-card { margin: 12px 16px; padding: 16px; background: var(--green-light); border-radius: 12px; }
+  .patient-card h2 { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+  .patient-card .meta { margin-top: 6px; font-size: 13px; color: var(--gray-700); }
+  .nav-title { padding: 12px 16px 6px; font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .03em; }
+  .kunj-item { margin: 8px 12px; padding: 12px 14px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px; cursor: pointer; transition: .15s; }
+  .kunj-item:hover { border-color: var(--green); }
+  .kunj-item.active { border-color: var(--green); background: var(--green-light); }
+  .kunj-item .ruang { font-weight: 600; font-size: 13px; color: var(--gray-900); }
+  .kunj-item .sub { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+  .kunj-item .dpjp { color: var(--blue); font-weight: 500; }
+  .main { flex: 1; padding: 16px; overflow-y: auto; }
+  .cppt { background: var(--white); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .cppt .head { border-bottom: 1px solid var(--gray-100); padding-bottom: 10px; margin-bottom: 10px; }
+  .cppt .head b { font-size: 14px; color: var(--gray-900); }
+  .cppt .penulis { font-size: 12px; color: var(--green-dark); font-weight: 500; }
+  .cppt .field { margin: 8px 0; }
+  .cppt .field .lbl { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .02em; margin-bottom: 2px; }
+  .cppt .field .val { font-size: 13px; color: var(--gray-700); white-space: pre-wrap; }
+  .sidebar-right { width: 360px; background: var(--white); border-left: 1px solid var(--gray-200); overflow-y: auto; flex-shrink: 0; padding: 16px; }
+  .sidebar-right h3 { font-size: 13px; font-weight: 700; color: var(--gray-900); margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--green-light); }
+  .sidebar-right h3:first-child { margin-top: 0; }
+  .detail-field { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px 14px; font-size: 13px; color: var(--gray-700); white-space: pre-wrap; line-height: 1.6; }
+  .icd-item { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: 13px; }
+  .konsul-item { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .badge-selesai { background: var(--green-light); color: var(--green-dark); }
+  .badge-aktif { background: #fef3c7; color: #d97706; }
+  .phys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .phys-item { background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; padding: 8px 10px; }
+  .phys-item .pl { font-size: 11px; color: var(--gray-500); font-weight: 500; }
+  .phys-item .pv { font-size: 13px; font-weight: 600; color: var(--gray-900); }
+  .empty { color: var(--gray-300); font-style: italic; font-size: 13px; }
+  .loading { text-align: center; color: var(--gray-500); padding: 24px; }
+  .err { background: #fef2f2; color: #dc2626; padding: 12px; border-radius: 8px; font-size: 13px; }
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 95; }
+  .overlay.show { display: block; }
+  .burger { display: none; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gray-700); }
+  @media (max-width: 860px) {
+    .sidebar, .sidebar-right { position: fixed; top: 106px; bottom: 0; z-index: 96; transform: translateX(-100%); transition: transform .2s; width: 85%; max-width: 340px; }
+    .sidebar-right { left: auto; right: 0; transform: translateX(100%); }
+    .sidebar.open, .sidebar-right.open { transform: translateX(0); }
+    .main { width: 100%; }
+    .tabs { top: 53px; }
+    .burger { display: block; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">S</div>
+  <h1>SIMRS Web</h1>
+  <a href="/" class="back" style="margin-left:auto">← Dashboard</a>
+</div>
+<div class="tabs">
+  <button id="tabKiri" class="active" onclick="showTab('kiri')">📋 Kunjungan</button>
+  <button id="tabTengah" onclick="showTab('tengah')">📝 CPPT</button>
+  <button id="tabKanan" onclick="showTab('kanan')">🔍 Detail</button>
+</div>
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+<div class="container">
+  <div class="sidebar panel" id="panelKiri">
+    <div class="search">
+      <input id="normInput" placeholder="No RM (mis. 1522131)" onkeydown="if(event.key==='Enter')doSearch()">
+      <button id="searchBtn" onclick="doSearch()">Cari Pasien</button>
+    </div>
+    <div id="sidebarContent"><div class="empty" style="padding:16px">Masukkan No RM untuk mencari kunjungan</div></div>
+  </div>
+  <div class="main panel" id="panelTengah">
+    <div id="result"><div class="empty" style="padding:24px;text-align:center">Pilih kunjungan di sebelah kiri untuk melihat CPPT</div></div>
+  </div>
+  <div class="sidebar-right panel" id="panelKanan">
+    <div id="detailContent"><div class="empty">Pilih kunjungan untuk melihat detail</div></div>
+  </div>
+</div>
+<script>
+let currentNorm = "";
+let currentKunjungan = "";
+let currentNopen = "";
+
+function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+async function doSearch() {
+  const norm = document.getElementById('normInput').value.trim();
+  if (!norm) return;
+  currentNorm = norm;
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true; btn.textContent = '...';
+  const sc = document.getElementById('sidebarContent');
+  sc.innerHTML = '<div class="loading">Memuat...</div>';
+  document.getElementById('result').innerHTML = '<div class="loading">Memuat CPPT...</div>';
+  try {
+    const [p, k] = await Promise.all([
+      fetch('/api/pasien?norm=' + norm).then(r => r.json()),
+      fetch('/api/kunjungan?norm=' + norm).then(r => r.json()),
+    ]);
+    if (!p.ok) { sc.innerHTML = `<div class="err">${p.error}</div>`; btn.disabled=false; btn.textContent='Cari Pasien'; return; }
+    let html = `<div class="patient-card"><h2>${esc(p.nama)}</h2><div class="meta">`;
+    if (p.jk) html += `JK: ${esc(p.jk)}<br>`;
+    if (p.tgl_lahir) html += `TTL: ${esc(p.tgl_lahir)}<br>`;
+    html += `No RM: ${esc(p.norm)}</div></div>`;
+    if (k.ok && k.kunjungan.length) {
+      html += `<div class="nav-title">${k.total} Kunjungan</div>`;
+      k.kunjungan.forEach((kj, i) => {
+        const status = kj.keluar ? '<span class="badge badge-selesai">Selesai</span>' : '<span class="badge badge-aktif">Aktif</span>';
+        html += `<div class="kunj-item" id="kj${i}" onclick="loadCppt('${esc(kj.kunjungan)}', ${i}, '${esc(kj.nopen||'')}')">
+          <div class="ruang">${esc(kj.ruangan || '(ruangan)')} ${status}</div>
+          <div class="sub">Masuk: ${esc(kj.masuk)}${kj.keluar ? '<br>Keluar: ' + esc(kj.keluar) : ''}
+          <br><span class="dpjp">DPJP: ${esc(kj.dpjp)}</span></div>
+        </div>`;
+      });
+    } else {
+      html += '<div class="empty" style="padding:16px">Tidak ada kunjungan</div>';
+    }
+    sc.innerHTML = html;
+    if (k.ok && k.kunjungan.length) { loadCppt(k.kunjungan[0].kunjungan, 0, k.kunjungan[0].nopen || ""); showTab('tengah'); }
+  } catch(e) {
+    sc.innerHTML = `<div class="err">Error: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Cari Pasien';
+}
+
+async function loadCppt(kunjungan, idx, nopen) {
+  currentKunjungan = kunjungan;
+  currentNopen = nopen || "";
+  document.querySelectorAll('.kunj-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('kj' + idx);
+  if (el) el.classList.add('active');
+  const res = document.getElementById('result');
+  res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
+  try {
+    const r = await fetch('/api/cppt?kunjungan=' + encodeURIComponent(kunjungan));
+    const j = await r.json();
+    if (!j.ok || !j.cppt.length) { res.innerHTML = '<div class="empty" style="padding:24px;text-align:center">Tidak ada CPPT untuk kunjungan ini</div>'; }
+    else {
+      let html = '';
+      j.cppt.forEach(c => {
+        html += `<div class="cppt">
+          <div class="head">
+            <b>${esc(c.tanggal)}</b><br>
+            <span class="penulis">✍ ${esc(c.penulis)}</span>
+          </div>
+          ${field('Subjektif', c.subjektif)}
+          ${field('Objektif', c.objektif)}
+          ${field('Assesment', c.assesment)}
+          ${field('Terapi', c.terapi)}
+          ${field('Planning', c.planning)}
+        </div>`;
+      });
+      res.innerHTML = html;
+    }
+    loadDetail(kunjungan, nopen);
+  } catch(e) { res.innerHTML = `<div class="err">Error: ${e.message}</div>`; }
+}
+
+async function loadDetail(kunjungan, nopen) {
+  const dc = document.getElementById('detailContent');
+  if (!dc) { console.error('detailContent not found'); return; }
+  dc.innerHTML = '<div class="loading">Memuat detail...</div>';
+  try {
+    const url = '/api/detail?kunjungan=' + encodeURIComponent(kunjungan) + (nopen ? '&nopen=' + encodeURIComponent(nopen) : '');
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d.ok) { dc.innerHTML = `<div class="err">${d.error}</div>`; return; }
+    let html = '';
+    html += dfield('Keluhan Utama', d.keluhan_utama);
+    html += dfield('Riwayat Penyakit Sekarang', d.riwayat_penyakit_sekarang);
+    html += dfield('Riwayat', d.riwayat);
+    // Pemeriksaan Fisik -> grid if "Label: Nilai" pattern
+    if (d.pemeriksaan_fisik && d.pemeriksaan_fisik.trim()) {
+      const grid = parsePhysik(d.pemeriksaan_fisik);
+      html += '<h3>Pemeriksaan Fisik</h3>';
+      if (grid) html += grid;
+      else html += `<div class="detail-field">${esc(d.pemeriksaan_fisik)}</div>`;
+    } else {
+      html += '<h3>Pemeriksaan Fisik</h3><div class="empty">-</div>';
+    }
+    html += dfield('Rencana Terapi', d.rencana_terapi);
+    html += dfield('Penilaian Diagnosis', d.penilaian_diagnosis);
+    html += '<h3>Diagnosis (ICD-10)</h3>';
+    if (d.icd10 && d.icd10.length) {
+      d.icd10.forEach(i => { html += `<div class="icd-item"><span class="code">${esc(i.kode||'-')}</span> ${esc(i.diagnosa||'(tanpa nama)')} ${i.utama ? '⭐' : ''}</div>`; });
+    } else html += '<div class="empty">Tidak ada ICD-10</div>';
+    html += '<h3>Konsul</h3>';
+    if (d.konsul && d.konsul.length) {
+      d.konsul.forEach(k => {
+        html += `<div class="konsul-item"><div class="meta">${esc(k.tanggal||'')} | ${esc(k.asal||'')} → ${esc(k.tujuan||'')}</div><div class="val">${esc(k.jawaban||'(tanpa jawaban)')}</div></div>`;
+      });
+    } else html += '<div class="empty">Tidak ada konsul</div>';
+    dc.innerHTML = html;
+  } catch(e) {
+    console.error('loadDetail error:', e);
+    dc.innerHTML = `<div class="err">Error loadDetail: ${e.message}</div>`;
+  }
+}
+
+function field(lbl, val) {
+  if (!val || !val.trim()) return '';
+  return `<div class="field"><div class="lbl">${lbl}</div><div class="val">${esc(val)}</div></div>`;
+}
+function parsePhysik(text) {
+  try {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const items = [];
+    for (const line of lines) {
+      const m = line.match(/^([^:]+):\s*(.+)$/);
+      if (m) items.push({ label: m[1].trim(), value: m[2].trim() });
+      else items.push({ label: '', value: line });
+    }
+    if (!items.length) return null;
+    let html = '<div class="phys-grid">';
+    items.forEach(it => {
+      html += `<div class="phys-item"><div class="pl">${esc(it.label||'')}</div><div class="pv">${esc(it.value)}</div></div>`;
+    });
+    html += '</div>';
+    return html;
+  } catch(e) { console.error('parsePhysik error:', e); return null; }
+}
+function dfield(lbl, val) {
+  if (!val || !val.trim()) return `<h3>${lbl}</h3><div class="empty">-</div>`;
+  return `<h3>${lbl}</h3><div class="detail-field">${esc(val)}</div>`;
+}
+function showTab(which) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + which.charAt(0).toUpperCase() + which.slice(1)).classList.add('active');
+  document.getElementById('panelTengah').classList.toggle('show', which === 'tengah');
+  if (which === 'kiri') { document.getElementById('panelKiri').classList.add('open'); document.getElementById('overlay').classList.add('show'); }
+  else if (which === 'kanan') {
+    document.getElementById('panelKanan').classList.add('show');
+    document.getElementById('panelKanan').classList.add('open');
+    document.getElementById('overlay').classList.add('show');
+    if (currentKunjungan) loadDetail(currentKunjungan, currentNopen);
+  }
+  else { document.getElementById('panelKiri').classList.remove('open'); document.getElementById('panelKanan').classList.remove('open'); document.getElementById('overlay').classList.remove('show'); }
+}
+function toggleSidebar() {
+  document.getElementById('panelKiri').classList.remove('open');
+  document.getElementById('panelKanan').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>

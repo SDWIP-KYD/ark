@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMRS Web Pro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+        colors: {
+          primary: {
+            50: '#f0fdf4',
+            100: '#dcfce7',
+            500: '#22c55e',
+            600: '#16a34a',
+            700: '#15803d',
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  [x-cloak] { display: none !important; }
+  /* Custom scrollbar for dense medical UI */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen antialiased flex flex-col font-sans">
+
+<div x-data="simrsApp()" x-init="init()" x-cloak class="flex-1 flex flex-col h-screen overflow-hidden">
+
+  <!-- Topbar Header -->
+  <header class="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center justify-between z-30 shrink-0 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
+        S
+      </div>
+      <div>
+        <h1 class="font-bold text-slate-800 text-sm md:text-base leading-tight">SIMRS Web Pro</h1>
+        <p class="text-[11px] text-slate-500 font-medium">RS Wahidin Sudirohusodo</p>
+      </div>
+    </div>
+
+    <!-- Active Patient Header Pill (if selected) -->
+    <div x-show="activePatient" class="hidden md:flex items-center gap-3 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-lg max-w-xl truncate">
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-xs font-bold text-emerald-800" x-text="activePatient?.nama"></span>
+      </div>
+      <span class="text-slate-300">|</span>
+      <span class="text-xs text-slate-600 font-mono" x-text="'RM: ' + activePatient?.norm"></span>
+      <span class="text-slate-300">|</span>
+      <span class="text-xs text-slate-600 truncate" x-text="activePatient?.ruangan + ' ' + (activePatient?.kamar || '')"></span>
+      <template x-if="activePatient?.no_hp">
+        <a :href="'tel:' + activePatient?.no_hp" class="text-xs text-emerald-700 hover:underline font-mono shrink-0 flex items-center gap-1">
+          📞 <span x-text="activePatient?.no_hp"></span>
+        </a>
+      </template>
+    </div>
+
+    <!-- Account / Actions -->
+    <div class="flex items-center gap-2">
+      <div class="text-right hidden sm:block">
+        <div class="text-xs font-semibold text-slate-800" x-text="currentUser"></div>
+        <div class="text-[10px] text-emerald-600 font-medium">Session Aktif</div>
+      </div>
+      <button @click="logout()" class="p-1.5 sm:px-2.5 sm:py-1 rounded-md text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition-colors">
+        Keluar
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile Active Patient Bar -->
+  <div x-show="activePatient" class="md:hidden bg-emerald-50 border-b border-emerald-200 px-3 py-2 flex items-center justify-between text-xs shrink-0">
+    <div class="truncate">
+      <span class="font-bold text-emerald-900" x-text="activePatient?.nama"></span>
+      <span class="text-slate-500 font-mono" x-text="' (' + activePatient?.norm + ')'"></span>
+      <div class="text-[10px] text-slate-600 truncate" x-text="(activePatient?.kamar ? activePatient.kamar + ' - ' : '') + activePatient?.ruangan"></div>
+    </div>
+    <template x-if="activePatient?.no_hp">
+      <a :href="'tel:' + activePatient?.no_hp" class="bg-white border border-emerald-300 px-2 py-1 rounded text-[11px] font-mono text-emerald-700 shrink-0 font-medium">
+        📞 Hubungi
+      </a>
+    </template>
+  </div>
+
+  <!-- Main View Container: Responsive 3-Panel Split on Desktop, Tabbed on Mobile -->
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- TAB NAVIGATION BAR (Mobile Bottom / Desktop Subheader) -->
+    <div class="md:hidden order-last bg-white border-t border-slate-200 flex justify-around p-1 shrink-0 z-20">
+      <button @click="mobileTab = 'kunjungan'" :class="mobileTab === 'kunjungan' ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-500'" class="flex-1 py-2 text-xs flex flex-col items-center rounded-md">
+        <span>📋</span>
+        <span>Pasien</span>
+      </button>
+      <button @click="mobileTab = 'cppt'" :class="mobileTab === 'cppt' ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-500'" class="flex-1 py-2 text-xs flex flex-col items-center rounded-md">
+        <span>📝</span>
+        <span>CPPT</span>
+      </button>
+      <button @click="mobileTab = 'lab'" :class="mobileTab === 'lab' ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-500'" class="flex-1 py-2 text-xs flex flex-col items-center rounded-md">
+        <span>🧪</span>
+        <span>Lab</span>
+      </button>
+      <button @click="mobileTab = 'detail'" :class="mobileTab === 'detail' ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-slate-500'" class="flex-1 py-2 text-xs flex flex-col items-center rounded-md">
+        <span>📄</span>
+        <span>Konsul/Spesial</span>
+      </button>
+    </div>
+
+    <!-- PANEL 1: SIDEBAR (Kunjungan Ranap & Search RM) -->
+    <aside 
+      :class="{'hidden md:flex': mobileTab !== 'kunjungan', 'flex': mobileTab === 'kunjungan'}"
+      class="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex-col shrink-0 h-full overflow-hidden"
+    >
+      <!-- Search RM Header Box -->
+      <div class="p-3 border-b border-slate-100 bg-slate-50/70 shrink-0">
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Cari Nomor RM</label>
+        <div class="flex gap-1.5">
+          <input 
+            type="text" 
+            x-model="searchNorm" 
+            @keyup.enter="searchPatient()" 
+            placeholder="Ketik No RM (e.g. 1709558)" 
+            class="flex-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono"
+          >
+          <button 
+            @click="searchPatient()" 
+            :disabled="isSearching"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center shrink-0 disabled:opacity-50"
+          >
+            <span x-show="!isSearching">Cari</span>
+            <span x-show="isSearching" class="animate-spin text-xs">⌛</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable List Area -->
+      <div class="flex-1 overflow-y-auto divide-y divide-slate-100">
+        
+        <!-- Search Result / Riwayat Kunjungan Card (if active) -->
+        <template x-if="searchResult">
+          <div class="p-3 bg-emerald-50/50 border-b border-emerald-100">
+            <div class="flex items-start justify-between">
+              <div>
+                <h3 class="font-bold text-xs text-slate-900" x-text="searchResult.nama"></h3>
+                <div class="text-[11px] text-slate-500 font-mono" x-text="'RM: ' + searchResult.norm + ' • ' + (searchResult.jk === 'L' ? 'Laki-laki' : 'Perempuan')"></div>
+                <div class="text-[11px] text-slate-500" x-text="'TTL: ' + (searchResult.tgl_lahir || '-')"></div>
+                <template x-if="searchResult.no_hp">
+                  <div class="text-[11px] text-emerald-700 font-mono mt-0.5" x-text="'📞 ' + searchResult.no_hp"></div>
+                </template>
+              </div>
+              <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Pasien Ditemukan</span>
+            </div>
+
+            <!-- List Riwayat Kunjungan -->
+            <div class="mt-2.5 space-y-1.5">
+              <div class="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                <span>Riwayat Kunjungan</span>
+                <span class="text-slate-400 font-mono text-[10px]" x-text="patientVisits.length + ' Kunjungan'"></span>
+              </div>
+              <template x-for="v in patientVisits" :key="v.kunjungan">
+                <div 
+                  @click="selectVisit(v, searchResult)"
+                  :class="selectedKunjunganId === v.kunjungan ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'"
+                  class="p-2 rounded-lg cursor-pointer text-xs transition-colors"
+                >
+                  <div class="flex justify-between items-start font-medium">
+                    <span x-text="v.ruangan || 'Kunjungan'"></span>
+                    <span 
+                      :class="selectedKunjunganId === v.kunjungan ? 'bg-white/20 text-white' : (v.keluar ? 'bg-slate-100 text-slate-600' : 'bg-emerald-100 text-emerald-800')"
+                      class="text-[10px] px-1.5 py-0.2 rounded font-bold" 
+                      x-text="v.keluar ? 'Selesai' : 'Aktif'"
+                    ></span>
+                  </div>
+                  <div :class="selectedKunjunganId === v.kunjungan ? 'text-emerald-100' : 'text-slate-500'" class="text-[10px] mt-0.5">
+                    <span x-text="'Masuk: ' + (v.masuk || '-')"></span>
+                    <div x-text="'DPJP: ' + (v.dpjp || '-')"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Daftar Pasien Rawat Inap Grouped -->
+        <div class="p-3 bg-white">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="text-sm">🩺</span>
+              <h2 class="font-bold text-xs uppercase tracking-wider text-slate-700">Pasien Rawat Inap</h2>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono" x-text="ranapList.length + ' Pasien'"></span>
+              <button @click="loadRanap()" title="Refresh" class="text-slate-400 hover:text-emerald-600 p-1 text-xs">🔄</button>
+            </div>
+          </div>
+
+          <!-- Loading state -->
+          <div x-show="isLoadingRanap" class="py-8 text-center text-xs text-slate-400">
+            <div class="inline-block animate-spin mb-1">⏳</div>
+            <div>Memuat data pasien ranap...</div>
+          </div>
+
+          <!-- Accordion Rooms -->
+          <div x-show="!isLoadingRanap" class="space-y-2">
+            <template x-for="room in groupedRanap" :key="room.name">
+              <div class="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                <!-- Room Header -->
+                <button 
+                  @click="room.open = !room.open" 
+                  class="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between text-left transition-colors"
+                >
+                  <div class="flex items-center gap-2 truncate">
+                    <span class="text-[10px] text-slate-400 transform transition-transform" :class="room.open ? 'rotate-90' : ''">▶</span>
+                    <span class="font-bold text-xs text-slate-800 truncate" x-text="room.name"></span>
+                  </div>
+                  <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full shrink-0 font-mono" x-text="room.patients.length + ' aktif'"></span>
+                </button>
+
+                <!-- Room Patient List -->
+                <div x-show="room.open" class="divide-y divide-slate-100 bg-white">
+                  <template x-for="p in room.patients" :key="p.norm + '_' + p.kunjungan">
+                    <div 
+                      @click="selectRanapPatient(p)" 
+                      :class="selectedKunjunganId === p.kunjungan ? 'bg-emerald-50 border-l-4 border-emerald-600' : 'hover:bg-slate-50/80'"
+                      class="p-2.5 pl-3 cursor-pointer transition-colors"
+                    >
+                      <div class="flex items-start justify-between">
+                        <span class="text-[11px] font-bold text-emerald-800" x-text="p.kamar || 'Kamar -'"></span>
+                        <span class="text-[10px] font-mono text-slate-400" x-text="'RM ' + p.norm"></span>
+                      </div>
+                      <div class="font-semibold text-xs text-slate-900 mt-0.5 leading-snug" x-text="p.nama"></div>
+                      <template x-if="p.dx">
+                        <div class="text-[10px] text-slate-500 truncate mt-0.5" x-text="'Dx: ' + p.dx"></div>
+                      </template>
+                      <div class="flex items-center justify-between mt-1 text-[10px] text-slate-400">
+                        <span class="truncate max-w-[180px]" x-text="p.dpjp"></span>
+                        <template x-if="p.no_hp">
+                          <span class="text-emerald-600 font-mono font-medium">📞</span>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- PANEL 2 & 3: MAIN VIEW (CPPT, LAB, DETAIL / KONSUL) -->
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+      
+      <!-- Desktop Navigation Tabs -->
+      <div class="hidden md:flex bg-white border-b border-slate-200 px-4 gap-6 shrink-0 text-sm font-semibold">
+        <button 
+          @click="activeMainTab = 'cppt'" 
+          :class="activeMainTab === 'cppt' ? 'border-b-2 border-emerald-600 text-emerald-700 py-3' : 'text-slate-500 hover:text-slate-800 py-3 border-b-2 border-transparent'"
+          class="transition-colors flex items-center gap-2"
+        >
+          <span>📝</span>
+          <span>CPPT (Catatan Terintegrasi)</span>
+          <template x-if="cpptList.length">
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono" x-text="cpptList.length"></span>
+          </template>
+        </button>
+
+        <button 
+          @click="activeMainTab = 'lab'" 
+          :class="activeMainTab === 'lab' ? 'border-b-2 border-emerald-600 text-emerald-700 py-3' : 'text-slate-500 hover:text-slate-800 py-3 border-b-2 border-transparent'"
+          class="transition-colors flex items-center gap-2"
+        >
+          <span>🧪</span>
+          <span>Laboratorium</span>
+          <template x-if="labResumeList.length">
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono" x-text="labResumeList.length"></span>
+          </template>
+        </button>
+
+        <button 
+          @click="activeMainTab = 'detail'" 
+          :class="activeMainTab === 'detail' ? 'border-b-2 border-emerald-600 text-emerald-700 py-3' : 'text-slate-500 hover:text-slate-800 py-3 border-b-2 border-transparent'"
+          class="transition-colors flex items-center gap-2"
+        >
+          <span>📄</span>
+          <span>Konsul & Pemeriksaan Khusus</span>
+          <template x-if="konsulList.length">
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono" x-text="konsulList.length"></span>
+          </template>
+        </button>
+      </div>
+
+      <!-- Tab Content Area (Scrollable) -->
+      <div class="flex-1 overflow-y-auto p-3 sm:p-5">
+
+        <!-- ======================= TAB: CPPT ======================= -->
+        <div x-show="(isMobile && mobileTab === 'cppt') || (!isMobile && activeMainTab === 'cppt')" class="max-w-4xl mx-auto space-y-4">
+          
+          <!-- Empty / Placeholder State -->
+          <div x-show="!selectedKunjunganId" class="py-16 text-center text-slate-400">
+            <div class="text-4xl mb-2">📋</div>
+            <div class="font-bold text-sm text-slate-600">Belum ada pasien yang dipilih</div>
+            <div class="text-xs text-slate-400 mt-1">Pilih pasien dari daftar rawat inap atau cari nomor RM di sidebar</div>
+          </div>
+
+          <!-- Loading State -->
+          <div x-show="isLoadingCppt" class="py-16 text-center text-slate-400">
+            <div class="inline-block animate-spin text-2xl mb-2">⏳</div>
+            <div class="text-sm font-medium">Memuat catatan CPPT...</div>
+          </div>
+
+          <!-- CPPT Cards List -->
+          <div x-show="!isLoadingCppt && selectedKunjunganId" class="space-y-4">
+            
+            <div class="flex items-center justify-between pb-1 border-b border-slate-200">
+              <h3 class="font-bold text-xs uppercase tracking-wider text-slate-700">Timeline CPPT Pasien</h3>
+              <button 
+                @click="copyAllCppt()" 
+                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs px-2.5 py-1 rounded-md shadow-sm font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <span>📋</span> Copy Semua SOAP
+              </button>
+            </div>
+
+            <template x-for="(note, idx) in cpptList" :key="idx">
+              <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <!-- Card Header -->
+                <div class="px-4 py-3 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-800" x-text="note.tanggal || '-'"></span>
+                    <span class="text-xs text-slate-400">•</span>
+                    <span class="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md" x-text="note.penulis || 'Tenaga Medis'"></span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] text-slate-500 font-medium" x-text="'DPJP: ' + (note.dpjp || '-')"></span>
+                    <button 
+                      @click="copySingleSoap(note)" 
+                      class="text-xs bg-white border border-slate-200 hover:border-slate-300 px-2 py-0.5 rounded text-slate-600 transition-colors" 
+                      title="Copy CPPT ini"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Card Body (SOAP Fields) -->
+                <div class="p-4 space-y-3 text-xs leading-relaxed">
+                  
+                  <!-- S (Subjektif) -->
+                  <template x-if="note.subjektif">
+                    <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">S (Subjektif)</div>
+                      <div class="text-slate-800 whitespace-pre-wrap font-sans" x-text="note.subjektif"></div>
+                    </div>
+                  </template>
+
+                  <!-- O (Objektif) -->
+                  <template x-if="note.objektif">
+                    <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">O (Objektif)</div>
+                      <div class="text-slate-800 whitespace-pre-wrap font-sans" x-text="note.objektif"></div>
+                    </div>
+                  </template>
+
+                  <!-- A (Asesmen) -->
+                  <template x-if="note.asesmen">
+                    <div class="bg-amber-50/60 rounded-lg p-2.5 border border-amber-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-amber-600 mb-0.5">A (Asesmen)</div>
+                      <div class="text-slate-900 font-medium whitespace-pre-wrap font-sans" x-text="note.asesmen"></div>
+                    </div>
+                  </template>
+
+                  <!-- P (Planning) -->
+                  <template x-if="note.planning">
+                    <div class="bg-emerald-50/60 rounded-lg p-2.5 border border-emerald-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-emerald-700 mb-0.5">P (Planning)</div>
+                      <div class="text-slate-800 whitespace-pre-wrap font-sans" x-text="note.planning"></div>
+                    </div>
+                  </template>
+
+                  <!-- Instruksi Terapi -->
+                  <template x-if="note.instruksi">
+                    <div class="bg-blue-50/60 rounded-lg p-2.5 border border-blue-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-blue-700 mb-0.5">Instruksi Medis / Terapi</div>
+                      <div class="text-slate-800 whitespace-pre-wrap font-sans" x-text="note.instruksi"></div>
+                    </div>
+                  </template>
+
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ======================= TAB: LAB ======================= -->
+        <div x-show="(isMobile && mobileTab === 'lab') || (!isMobile && activeMainTab === 'lab')" class="max-w-4xl mx-auto space-y-4">
+          
+          <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div class="flex gap-2">
+              <button 
+                @click="labSubTab = 'resume'" 
+                :class="labSubTab === 'resume' ? 'bg-emerald-600 text-white font-semibold' : 'bg-white text-slate-600 border border-slate-200'"
+                class="px-3 py-1 rounded-lg text-xs transition-colors"
+              >
+                Resume Terkini (<span x-text="labResumeList.length"></span>)
+              </button>
+              <button 
+                @click="labSubTab = 'special'" 
+                :class="labSubTab === 'special' ? 'bg-emerald-600 text-white font-semibold' : 'bg-white text-slate-600 border border-slate-200'"
+                class="px-3 py-1 rounded-lg text-xs transition-colors"
+              >
+                Pemeriksaan Khusus (<span x-text="labSpecialList.length"></span>)
+              </button>
+            </div>
+            <button 
+              @click="copySelectedLabs()" 
+              class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs px-2.5 py-1 rounded-md shadow-sm font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <span>📋</span> Copy Lab Terpilih
+            </button>
+          </div>
+
+          <!-- Loading State -->
+          <div x-show="isLoadingLab" class="py-16 text-center text-slate-400">
+            <div class="inline-block animate-spin text-2xl mb-2">⏳</div>
+            <div class="text-sm font-medium">Memuat data laboratorium...</div>
+          </div>
+
+          <!-- Empty Lab State -->
+          <div x-show="!isLoadingLab && labResumeList.length === 0" class="py-16 text-center text-slate-400">
+            <div class="text-4xl mb-2">🧪</div>
+            <div class="font-bold text-sm text-slate-600">Tidak ada riwayat laboratorium</div>
+            <div class="text-xs text-slate-400 mt-1">Belum ditemukan hasil lab untuk pasien/kunjungan ini</div>
+          </div>
+
+          <!-- Lab Resume List (Accordion Per Tanggal/Pemeriksaan) -->
+          <div x-show="!isLoadingLab && labSubTab === 'resume'" class="space-y-3">
+            <template x-for="item in labResumeList" :key="item.kunjungan_lab || item.tanggal">
+              <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <!-- Lab Header -->
+                <div 
+                  @click="toggleLabItem(item)" 
+                  class="px-4 py-3 bg-slate-50/90 hover:bg-slate-100/80 cursor-pointer flex items-center justify-between transition-colors select-none"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-slate-400 transform transition-transform" :class="item.open ? 'rotate-90' : ''">▶</span>
+                    <div>
+                      <div class="font-bold text-xs text-slate-800" x-text="item.tindakan || item.nama || 'Pemeriksaan Lab'"></div>
+                      <div class="text-[11px] text-slate-500 font-mono" x-text="item.tanggal || '-'"></div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] bg-slate-200/80 text-slate-700 px-2 py-0.5 rounded font-mono" x-text="item.items ? (item.items.length + ' Item') : 'Klik buka'"></span>
+                  </div>
+                </div>
+
+                <!-- Lab Detail Items (Lazy loaded on click) -->
+                <div x-show="item.open" class="p-3 border-t border-slate-100 bg-white">
+                  <div x-show="item.loading" class="py-4 text-center text-xs text-slate-400">
+                    <span class="inline-block animate-spin mr-1">⏳</span> Memuat parameter lab...
+                  </div>
+                  
+                  <template x-if="!item.loading && item.items && item.items.length > 0">
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200">
+                          <tr>
+                            <th class="p-2 w-8 text-center">
+                              <input type="checkbox" @change="toggleSelectAllInPanel(item, $event)" checked class="rounded text-emerald-600">
+                            </th>
+                            <th class="p-2">Pemeriksaan</th>
+                            <th class="p-2">Hasil</th>
+                            <th class="p-2">Rujukan</th>
+                            <th class="p-2">Satuan</th>
+                            <th class="p-2 w-10 text-center">Copy</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 font-mono text-[11px]">
+                          <template x-for="row in item.items" :key="row.nama">
+                            <tr class="hover:bg-slate-50/80">
+                              <td class="p-2 text-center">
+                                <input type="checkbox" x-model="row.selected" class="rounded text-emerald-600">
+                              </td>
+                              <td class="p-2 font-sans font-medium text-slate-800" x-text="row.nama"></td>
+                              <td class="p-2 font-bold text-slate-900" x-text="row.hasil"></td>
+                              <td class="p-2 text-slate-400" x-text="row.normal || '-'"></td>
+                              <td class="p-2 text-slate-500" x-text="row.satuan || ''"></td>
+                              <td class="p-2 text-center">
+                                <button 
+                                  @click="copySingleLabItem(row)" 
+                                  class="text-[11px] p-1 text-slate-400 hover:text-emerald-600 rounded" 
+                                  title="Copy"
+                                >
+                                  📋
+                                </button>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </template>
+
+                  <div x-show="!item.loading && (!item.items || item.items.length === 0)" class="py-3 text-center text-xs text-slate-400">
+                    Tidak ada rincian hasil untuk pemeriksaan ini atau hasil diarsipkan.
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Lab Special List -->
+          <div x-show="!isLoadingLab && labSubTab === 'special'" class="space-y-3">
+            <template x-for="sp in labSpecialList" :key="sp.nama">
+              <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <div class="font-bold text-xs text-slate-800" x-text="sp.nama"></div>
+                  <span class="text-[10px] text-slate-400 font-mono" x-text="sp.tanggal || '-'"></span>
+                </div>
+                <div class="text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed" x-text="sp.hasil || 'Tidak ada uraian hasil.'"></div>
+              </div>
+            </template>
+          </div>
+
+        </div>
+
+        <!-- ======================= TAB: DETAIL / KONSUL ======================= -->
+        <div x-show="(isMobile && mobileTab === 'detail') || (!isMobile && activeMainTab === 'detail')" class="max-w-4xl mx-auto space-y-4">
+          
+          <div class="flex items-center justify-between pb-1 border-b border-slate-200">
+            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-700">Daftar Konsultasi & Rawat Bersama</h3>
+            <span class="text-xs text-slate-400 font-mono" x-text="konsulList.length + ' Konsul'"></span>
+          </div>
+
+          <!-- Loading State -->
+          <div x-show="isLoadingDetail" class="py-16 text-center text-slate-400">
+            <div class="inline-block animate-spin text-2xl mb-2">⏳</div>
+            <div class="text-sm font-medium">Memuat lembar konsul...</div>
+          </div>
+
+          <!-- Empty Konsul State -->
+          <div x-show="!isLoadingDetail && konsulList.length === 0" class="py-16 text-center text-slate-400">
+            <div class="text-4xl mb-2">💬</div>
+            <div class="font-bold text-sm text-slate-600">Tidak ada riwayat konsul</div>
+            <div class="text-xs text-slate-400 mt-1">Belum ada lembar konsultasi untuk pasien ini</div>
+          </div>
+
+          <!-- Konsul Cards -->
+          <div x-show="!isLoadingDetail && konsulList.length > 0" class="space-y-4">
+            <template x-for="(k, ki) in konsulList" :key="ki">
+              <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                <!-- Konsul Header -->
+                <div class="px-4 py-3 bg-slate-50/90 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-800" x-text="k.tanggal || '-'"></span>
+                    <span class="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded" x-text="'→ ' + (k.tujuan || 'Konsul')"></span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span 
+                      :class="k.jawaban ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'" 
+                      class="text-[10px] font-bold px-2 py-0.5 rounded-full" 
+                      x-text="k.jawaban ? '✅ Selesai' : '⏳ Menunggu'"
+                    ></span>
+                    <button 
+                      @click="copyKonsul(k)" 
+                      class="text-xs bg-white border border-slate-200 hover:bg-slate-50 px-2 py-0.5 rounded text-slate-600 transition-colors"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Konsul Body -->
+                <div class="p-4 space-y-3 text-xs leading-relaxed">
+                  
+                  <template x-if="k.dokter_tujuan">
+                    <div class="text-slate-500 text-[11px] font-medium" x-text="'Dokter Tujuan: ' + k.dokter_tujuan"></div>
+                  </template>
+
+                  <!-- Alasan Konsul -->
+                  <template x-if="k.permintaan">
+                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Alasan Konsul</div>
+                      <div class="text-slate-800 font-sans whitespace-pre-wrap" x-text="k.permintaan"></div>
+                    </div>
+                  </template>
+
+                  <!-- Konsul yang diminta -->
+                  <template x-if="k.instruksi">
+                    <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Konsul yang diminta</div>
+                      <div class="text-slate-800 font-sans whitespace-pre-wrap" x-text="k.instruksi"></div>
+                    </div>
+                  </template>
+
+                  <!-- Jawaban Konsul -->
+                  <template x-if="k.jawaban">
+                    <div class="bg-emerald-50/70 p-3 rounded-lg border border-emerald-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-emerald-800 mb-1 flex items-center justify-between">
+                        <span>Jawaban Konsulen</span>
+                        <template x-if="k.jawaban_dokter">
+                          <span class="text-emerald-700 font-normal" x-text="k.jawaban_dokter + ' (' + (k.jawaban_tanggal || '-') + ')'"></span>
+                        </template>
+                      </div>
+                      <div class="text-slate-900 font-sans whitespace-pre-wrap leading-relaxed" x-text="k.jawaban"></div>
+                    </div>
+                  </template>
+
+                  <!-- Anjuran -->
+                  <template x-if="k.anjuran">
+                    <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100">
+                      <div class="font-bold text-[10px] uppercase tracking-wider text-blue-800 mb-1">Anjuran / Advice</div>
+                      <div class="text-slate-900 font-sans whitespace-pre-wrap leading-relaxed" x-text="k.anjuran"></div>
+                    </div>
+                  </template>
+
+                </div>
+              </div>
+            </template>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+</div>
+
+<!-- App Logic Script -->
+<script>
+function simrsApp() {
+  return {
+    currentUser: 'Memuat...',
+    isMobile: window.innerWidth < 768,
+    mobileTab: 'kunjungan',
+    activeMainTab: 'cppt',
+    labSubTab: 'resume',
+
+    // Data State
+    ranapList: [],
+    searchNorm: '',
+    isSearching: false,
+    searchResult: null,
+    patientVisits: [],
+
+    activePatient: null,
+    selectedKunjunganId: '',
+    selectedNopen: '',
+    selectedNorm: '',
+
+    cpptList: [],
+    labResumeList: [],
+    labSpecialList: [],
+    konsulList: [],
+
+    // Loading Spinners
+    isLoadingRanap: false,
+    isLoadingCppt: false,
+    isLoadingLab: false,
+    isLoadingDetail: false,
+
+    async init() {
+      window.addEventListener('resize', () => {
+        this.isMobile = window.innerWidth < 768;
+      });
+
+      // Check auth status
+      try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        if (!data.ok) {
+          window.location.href = '/';
+          return;
+        }
+        this.currentUser = data.user || 'Dokter';
+      } catch (e) {
+        window.location.href = '/';
+        return;
+      }
+
+      await this.loadRanap();
+    },
+
+    get groupedRanap() {
+      const groups = {};
+      this.ranapList.forEach(p => {
+        const room = p.ruangan || '(Tanpa Ruangan)';
+        if (!groups[room]) {
+          groups[room] = { name: room, open: false, patients: [] };
+        }
+        groups[room].patients.push(p);
+      });
+      return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    async loadRanap() {
+      this.isLoadingRanap = true;
+      try {
+        const res = await fetch('/api/ranap/aktif?limit=100');
+        const data = await res.json();
+        if (data.ok && data.data) {
+          // Dedup by norm
+          const seen = new Set();
+          this.ranapList = data.data.filter(p => {
+            if (!p.norm) return true;
+            if (seen.has(p.norm)) return false;
+            seen.add(p.norm);
+            return true;
+          });
+        }
+      } catch (e) {
+        console.error('Gagal load ranap:', e);
+      } finally {
+        this.isLoadingRanap = false;
+      }
+    },
+
+    async searchPatient() {
+      const norm = this.searchNorm.trim();
+      if (!norm) return;
+      this.isSearching = true;
+      try {
+        const [pRes, kRes] = await Promise.all([
+          fetch('/api/pasien?norm=' + encodeURIComponent(norm)).then(r => r.json()),
+          fetch('/api/kunjungan?norm=' + encodeURIComponent(norm)).then(r => r.json()),
+        ]);
+
+        if (pRes.ok) {
+          this.searchResult = pRes;
+          this.patientVisits = kRes.ok ? (kRes.kunjungan || []) : [];
+          if (this.patientVisits.length > 0) {
+            this.selectVisit(this.patientVisits[0], pRes);
+          }
+        } else {
+          alert('Pasien tidak ditemukan: ' + (pRes.error || ''));
+        }
+      } catch (e) {
+        alert('Gagal mencari pasien: ' + e.message);
+      } finally {
+        this.isSearching = false;
+      }
+    },
+
+    selectRanapPatient(p) {
+      this.activePatient = p;
+      this.selectedKunjunganId = p.kunjungan;
+      this.selectedNopen = p.nopen || '';
+      this.selectedNorm = p.norm;
+      this.fetchAllDetails(p.kunjungan, p.nopen, p.norm);
+      if (this.isMobile) this.mobileTab = 'cppt';
+    },
+
+    selectVisit(v, patientInfo) {
+      this.activePatient = {
+        nama: patientInfo.nama,
+        norm: patientInfo.norm,
+        ruangan: v.ruangan,
+        kamar: '',
+        no_hp: patientInfo.no_hp || '',
+        dpjp: v.dpjp || ''
+      };
+      this.selectedKunjunganId = v.kunjungan;
+      this.selectedNopen = v.nopen || '';
+      this.selectedNorm = patientInfo.norm;
+      this.fetchAllDetails(v.kunjungan, v.nopen, patientInfo.norm);
+      if (this.isMobile) this.mobileTab = 'cppt';
+    },
+
+    async fetchAllDetails(kunjungan, nopen, norm) {
+      this.loadCpptData(kunjungan, nopen, norm);
+      this.loadLabData(kunjungan, nopen, norm);
+      this.loadDetailData(kunjungan, nopen, norm);
+    },
+
+    async loadCpptData(kunjungan, nopen, norm) {
+      this.isLoadingCppt = true;
+      this.cpptList = [];
+      try {
+        const res = await fetch('/api/cppt?kunjungan=' + encodeURIComponent(kunjungan));
+        const data = await res.json();
+        if (data.ok && data.cppt) {
+          this.cpptList = data.cppt;
+        }
+      } catch (e) {
+        console.error('Error load CPPT:', e);
+      } finally {
+        this.isLoadingCppt = false;
+      }
+    },
+
+    async loadLabData(kunjungan, nopen, norm) {
+      this.isLoadingLab = true;
+      this.labResumeList = [];
+      this.labSpecialList = [];
+      try {
+        const [rIdx, rSp] = await Promise.all([
+          fetch('/api/lab/index?norm=' + encodeURIComponent(norm) + '&kunjungan=' + encodeURIComponent(kunjungan)).then(r => r.json()),
+          fetch('/api/lab/special?kunjungan=' + encodeURIComponent(kunjungan) + '&norm=' + encodeURIComponent(norm)).then(r => r.json()),
+        ]);
+
+        if (rIdx.ok && rIdx.panels) {
+          this.labResumeList = rIdx.panels.map((p, idx) => ({
+            ...p,
+            open: idx === 0, // open first by default
+            loading: false,
+            items: null
+          }));
+          // auto-load first item detail
+          if (this.labResumeList.length > 0) {
+            this.fetchLabDetail(this.labResumeList[0]);
+          }
+        }
+
+        if (rSp.ok && rSp.special) {
+          this.labSpecialList = rSp.special;
+        }
+      } catch (e) {
+        console.error('Error load Lab:', e);
+      } finally {
+        this.isLoadingLab = false;
+      }
+    },
+
+    async toggleLabItem(item) {
+      item.open = !item.open;
+      if (item.open && !item.items && !item.loading) {
+        await this.fetchLabDetail(item);
+      }
+    },
+
+    async fetchLabDetail(item) {
+      const kl = item.kunjungan_lab;
+      if (!kl) return;
+      item.loading = true;
+      try {
+        const res = await fetch('/api/lab/detil?kunjungan_lab=' + encodeURIComponent(kl));
+        const data = await res.json();
+        if (data.ok && data.items) {
+          item.items = data.items.map(it => ({
+            ...it,
+            selected: true
+          }));
+        } else {
+          item.items = [];
+        }
+      } catch (e) {
+        console.error('Gagal fetch lab detail:', e);
+        item.items = [];
+      } finally {
+        item.loading = false;
+      }
+    },
+
+    async loadDetailData(kunjungan, nopen, norm) {
+      this.isLoadingDetail = true;
+      this.konsulList = [];
+      try {
+        const url = '/api/detail?kunjungan=' + encodeURIComponent(kunjungan) + (nopen ? '&nopen=' + encodeURIComponent(nopen) : '') + (norm ? '&norm=' + encodeURIComponent(norm) : '');
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.ok && data.konsul) {
+          this.konsulList = data.konsul;
+        }
+      } catch (e) {
+        console.error('Error load Detail:', e);
+      } finally {
+        this.isLoadingDetail = false;
+      }
+    },
+
+    toggleSelectAllInPanel(item, event) {
+      const checked = event.target.checked;
+      if (item.items) {
+        item.items.forEach(d => d.selected = checked);
+      }
+    },
+
+    copySingleLabItem(row) {
+      const text = `${row.nama}: ${row.hasil} ${row.satuan || ''}`.trim();
+      navigator.clipboard.writeText(text);
+      alert('Tersalin: ' + text);
+    },
+
+    copySelectedLabs() {
+      const selected = [];
+      this.labResumeList.forEach(panel => {
+        if (panel.items) {
+          panel.items.filter(d => d.selected).forEach(d => {
+            selected.push(`${d.nama}: ${d.hasil} ${d.satuan || ''}`);
+          });
+        }
+      });
+      if (!selected.length) {
+        alert('Pilih minimal 1 parameter lab untuk disalin.');
+        return;
+      }
+      const text = `Hasil Lab (${this.activePatient?.nama || 'Pasien'}):\n` + selected.join('\n');
+      navigator.clipboard.writeText(text);
+      alert('Hasil lab terpilih berhasil disalin!');
+    },
+
+    copySingleSoap(note) {
+      const text = `[CPPT ${note.tanggal || ''} - ${note.penulis || ''}]\nS: ${note.subjektif || '-'}\nO: ${note.objektif || '-'}\nA: ${note.asesmen || '-'}\nP: ${note.planning || '-'}\nInstruksi: ${note.instruksi || '-'}`;
+      navigator.clipboard.writeText(text);
+      alert('SOAP berhasil disalin ke clipboard!');
+    },
+
+    copyAllCppt() {
+      if (!this.cpptList.length) return;
+      const text = this.cpptList.map(note => 
+        `=== CPPT ${note.tanggal || ''} (${note.penulis || ''}) ===\nS: ${note.subjektif || '-'}\nO: ${note.objektif || '-'}\nA: ${note.asesmen || '-'}\nP: ${note.planning || '-'}\nInstruksi: ${note.instruksi || '-'}`
+      ).join('\n\n');
+      navigator.clipboard.writeText(text);
+      alert('Semua CPPT berhasil disalin!');
+    },
+
+    copyKonsul(k) {
+      const text = `[KONSUL ${k.tanggal || ''} ke ${k.tujuan || ''}]\nAlasan: ${k.permintaan || '-'}\nPermintaan: ${k.instruksi || '-'}\nJawaban: ${k.jawaban || 'Belum dijawab'}\nAnjuran: ${k.anjuran || '-'}\nDijawab oleh: ${k.jawaban_dokter || '-'}`;
+      navigator.clipboard.writeText(text);
+      alert('Lembar konsul berhasil disalin!');
+    },
+
+    logout() {
+      window.location.href = '/api/logout';
+    }
+  }
+}
+</script>
+
+</body>
+</html>
