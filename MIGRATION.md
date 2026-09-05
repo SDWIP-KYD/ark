@@ -47,10 +47,12 @@ wstunnel **server** jalan di VM (port 8088, service `wstunnel.service`):
 /usr/local/bin/wstunnel server ws://0.0.0.0:8088 --websocket-ping-frequency 15
 ```
 Sisi RS punya client wstunnel yang mengekspos 192.168.23.104:80 → server ini.
-`localhost:8080` di VM adalah listener dari client RS. Setelah pindah VM:
-- [ ] Update target di client wstunnel sisi RS → IP publik VM baru:8088
-- [ ] Instal wstunnel di VM baru + unit `wstunnel.service` (config sederhana, lihat atas)
+Client RS nyambung via **domain** `relay.kay.web.id` (bukan IP mentah), jadi
+pindah VM TIDAK PERLU setting apa pun di sisi RS:
+- [ ] Update DNS record `relay.kay.web.id` → IP publik VM baru (panel Cloudflare, 1 klik)
+- [ ] Instal wstunnel di VM baru + unit `wstunnel.service` (config sama persis)
 - [ ] Test: `curl http://localhost:8080/webservice` → harus respons (301/200)
+      (respons = client RS sudah auto-reconnect ke VM baru)
 
 ## 5. Cloudflare
 - [ ] Arahkan tunnel/DNS `hema.ark-kay.my.id` → `VM-BARU:8788` (HTTP)
