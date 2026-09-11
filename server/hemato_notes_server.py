@@ -11,10 +11,10 @@ import pickle
 _lookup_jobs = {}
 _lookup_jobs_lock = threading.Lock()
 
-def _run_full_lookup_job(job_id, norm, with_special):
+def _run_full_lookup_job(job_id, norm, with_special, use_cache=True):
     try:
         import hematology_lookup as HL
-        result = HL.lookup(norm, include_special=with_special, quick=False, use_cache=False)
+        result = HL.lookup(norm, include_special=with_special, quick=False, use_cache=use_cache)
         with _lookup_jobs_lock:
             _lookup_jobs[job_id].update(status='done', result=result, finished_at=time.time())
     except Exception as e:
@@ -606,6 +606,10 @@ class H(SimpleHTTPRequestHandler):
             norm = u.path.strip('/').split('/')[-1]
             qs = parse_qs(u.query)
             with_sp = qs.get('special', ['1'])[0] in ('1', 'true', 'yes')
+            # refresh=1 → bypass 6h disk cache (explicit refetch, e.g. from
+            # the "Refetch" button in lookup.html). Default jobs USE the cache
+            # so a repeat lookup of the same RM finishes in <1s.
+            force_fresh = qs.get('refresh', ['0'])[0] in ('1', 'true', 'yes')
             try:
                 norm = str(int(norm))
             except Exception:
@@ -625,7 +629,7 @@ class H(SimpleHTTPRequestHandler):
                     _lookup_jobs[job_id] = {'status':'running','norm':norm,'created_at':now}
             if not existing:
                 threading.Thread(target=_run_full_lookup_job,
-                                 args=(job_id, norm, with_sp), daemon=True).start()
+                                 args=(job_id, norm, with_sp, not force_fresh), daemon=True).start()
             body = json.dumps({'success':True,'job_id':job_id,'status':'running'}).encode()
             self._send_gzip(body, 'application/json; charset=utf-8')
         elif self.path.startswith('/api/lookup-job/status/'):

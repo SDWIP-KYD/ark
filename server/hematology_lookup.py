@@ -6,6 +6,7 @@ Features:
 """
 import sys, os, json, requests, time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 BASE = "http://localhost:8080/webservice"
@@ -197,6 +198,28 @@ def fetch_lab_data(s, norm, quick=False, max_clusters=3):
             batch = r.get("data") or []
             all_items.extend(batch)
             total = r.get("total", 0) or 0
+            # Full mode with known total: after page 1, fetch ALL remaining
+            # pages in parallel — one session per worker (SIMRS serializes
+            # requests per PHP session, so sharing one session queues them).
+            if (not quick) and total > offset + len(batch):
+                starts = list(range(offset + len(batch), total, page_limit))
+                def _page(off):
+                    ws = make_session() or s
+                    for attempt in range(3):
+                        try:
+                            rr = ws.get(f"{BASE}/layanan/hasillab",
+                                        params={"NORM": norm, "limit": page_limit, "start": off},
+                                        timeout=90).json()
+                            if isinstance(rr, dict) and rr.get("success"):
+                                return rr.get("data") or []
+                        except Exception as e:
+                            print(f"  parallel page {off} attempt {attempt + 1}/3: {e}")
+                            time.sleep(1 + attempt)
+                    return []
+                with ThreadPoolExecutor(max_workers=min(4, len(starts))) as ex:
+                    for extra in ex.map(_page, starts):
+                        all_items.extend(extra)
+                break
             # Build preliminary clusters to decide if we have enough in quick mode
             if quick:
                 prelim = _cluster_from_items(all_items, max_clusters)
@@ -272,34 +295,24 @@ def _cluster_from_items(all_items, max_clusters=None):
     return cluster_labs(out)[:max_clusters] if max_clusters else cluster_labs(out)
 
 def fetch_special_full(s, norm):
-    """Fetch 6 special modules with true KESIMPULAN / KESAN / HASIL."""
+    """Fetch 6 special modules with true KESIMPULAN / KESAN / HASIL.
+    Modules are independent → fetched concurrently (bounded pool) to cut
+    round-trips through the SIMRS tunnel. requests.Session pools connections
+    so concurrent GETs on one session are safe at this scale."""
     sys.path.insert(0, '/home/lenovo')
     import fetch_special_15agustus as FS
-    special = {'pa': [], 'rad': [], 'bmp': [], 'lcs': [], 'immuno': [], 'ihc': []}
-    
-    try:
-        special['pa'] = FS.fetch_pa(s, norm) or []
-    except Exception: pass
+    modules = ('pa', 'rad', 'bmp', 'lcs', 'immuno', 'ihc')
 
-    try:
-        special['rad'] = FS.fetch_rad(s, norm) or []
-    except Exception: pass
+    def _one(key):
+        try:
+            return key, getattr(FS, f"fetch_{key}")(s, norm) or []
+        except Exception:
+            return key, []
 
-    try:
-        special['bmp'] = FS.fetch_bmp(s, norm) or []
-    except Exception: pass
-
-    try:
-        special['lcs'] = FS.fetch_lcs(s, norm) or []
-    except Exception: pass
-
-    try:
-        special['immuno'] = FS.fetch_immuno(s, norm) or []
-    except Exception: pass
-
-    try:
-        special['ihc'] = FS.fetch_ihc(s, norm) or []
-    except Exception: pass
+    special = dict.fromkeys(modules, [])
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        for key, val in ex.map(_one, modules):
+            special[key] = val
 
     # Dedup & Clean up PA & IHC if duplicate KUNJUNGAN
     for k in special:

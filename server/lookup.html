@@ -278,7 +278,7 @@ function pollFullLookup(jobId, preview, attempts, norm) {
 function refreshRM(norm) {
   var status = document.getElementById('status');
   status.textContent = '🔄 Refetch RM ' + norm + ' dari SIMRS (bypass cache)...';
-  fetch('/api/lookup-job/start/' + norm + '?special=1')
+  fetch('/api/lookup-job/start/' + norm + '?special=1&refresh=1')
     .then(function(r) { return r.json(); })
     .then(function(started) {
       if (!started.success || !started.job_id) throw new Error(started.error || 'Gagal memulai refetch');
