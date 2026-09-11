@@ -480,6 +480,9 @@ async function loadPasienRanap(kunjungan, norm, nopen) {
   if (el) el.classList.add('active');
   // Tampilkan riwayat kunjungan pasien ini di SIDEBAR ATAS
   loadRiwayat(norm, kunjungan);
+  // True parallel: fire Detail + Lab SEKARANG tanpa nunggu CPPT.
+  loadDetail(kunjungan, nopen, norm);
+  loadLab(kunjungan, nopen);
   // Load CPPT
   const res = document.getElementById('result');
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
@@ -493,8 +496,6 @@ async function loadPasienRanap(kunjungan, norm, nopen) {
       currentCpptData = j.cppt;
       renderCppt();
     }
-    loadDetail(kunjungan, nopen, norm);
-    loadLab(kunjungan, nopen);
   } catch(e) { res.innerHTML = `<div class="err">Error: ${e.message}</div>`; }
   showTab('tengah');
 }
@@ -587,6 +588,9 @@ async function loadCppt(kunjungan, idx, nopen, norm) {
   const res = document.getElementById('result');
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
   ensurePatientHeader(currentNorm);  // Fix 1: identity header
+  // True parallel: fire Detail + Lab SEKARANG tanpa nunggu CPPT selesai.
+  loadDetail(kunjungan, nopen, norm);
+  loadLab(kunjungan, nopen || "");
   try {
     const r = await fetch('/api2/cppt?kunjungan=' + encodeURIComponent(kunjungan));
     const j = await r.json();
@@ -596,8 +600,6 @@ async function loadCppt(kunjungan, idx, nopen, norm) {
       currentCpptData = j.cppt;
       renderCppt();
     }
-    loadDetail(kunjungan, nopen, norm);
-    loadLab(kunjungan, nopen || "");  // fire lab (index+special parallel) on every RM/kunjungan open
   } catch(e) { res.innerHTML = `<div class="err">Error: ${e.message}</div>`; }
 }
 
@@ -969,9 +971,17 @@ async function toggleLabPanel(headEl, kl) {
   }
 }
 
-async function loadLabDetail(kl, headEl) {
-  const body = document.getElementById('labdet-' + kl);
-  if (!body || body.dataset.loaded) return;  // cache: jangan refetch
+async function loadLabDetail(kl, headEl, _retry) {
+  let body = document.getElementById('labdet-' + kl);
+  if (!body) {
+    // DOM di-render ulang oleh run lain (index vs special): tunggu lalu coba lagi
+    if ((_retry || 0) < 6) {
+      await new Promise(r => setTimeout(r, 500));
+      return loadLabDetail(kl, headEl, (_retry || 0) + 1);
+    }
+    return; // elemen benar-benar tidak ada: berhenti diam-diam
+  }
+  if (body.dataset.loaded) return;  // cache: jangan refetch
   body.dataset.loaded = '1';
   body.innerHTML = '<div class="loading" style="padding:8px">Memuat...</div>';
   try {
