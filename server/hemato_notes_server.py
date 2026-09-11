@@ -3,7 +3,7 @@
 OPTIMIZED: in-memory cache + gzip + Cache-Control. Full lab data preserved.
 """
 import json, os, gzip, threading, sys, time, uuid
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import pickle
 
 # Arbitrary-RM full lookups run as background jobs so Cloudflare never holds
@@ -1345,4 +1345,4 @@ def _run_rebuild(job_id):
 
 if __name__ == '__main__':
     print(f"Hemato notes server on :{PORT} (gzip+cache enabled)", flush=True)
-    HTTPServer(('0.0.0.0', PORT), H).serve_forever()
+    ThreadingHTTPServer(('0.0.0.0', PORT), H).serve_forever()
