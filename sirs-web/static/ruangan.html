@@ -209,14 +209,17 @@
   </div>
   <div class="main panel" id="panelTengah">
     <div class="panel-toolbar"><span>📝 CPPT</span><button onclick="reloadTab('cppt')" class="reload-btn">🔄 Reload</button></div>
+    <div id="patientHeaderCppt"></div>
     <div id="result"><div class="empty" style="padding:24px;text-align:center">Pilih kunjungan di sebelah kiri untuk melihat CPPT</div></div>
   </div>
   <div class="main panel" id="panelLab">
     <div class="panel-toolbar"><span>🧪 Laboratorium</span><button onclick="reloadTab('lab')" class="reload-btn">🔄 Reload</button></div>
+    <div id="labHeader"></div>
     <div id="labContent"><div class="empty" style="padding:24px;text-align:center">Pilih kunjungan untuk melihat hasil lab</div></div>
   </div>
   <div class="sidebar-right panel" id="panelKanan">
     <div class="panel-toolbar"><span>🔍 Detail</span><button onclick="reloadTab('detail')" class="reload-btn">🔄 Reload</button></div>
+    <div id="patientHeaderDetail"></div>
     <div id="detailContent"><div class="empty">Pilih kunjungan untuk melihat detail</div></div>
   </div>
 </div>
@@ -228,33 +231,49 @@ let labLoadedForKunjungan = false;
 let detailLoadedForKunjungan = false;
 
 function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-// fetch wrapper with timeout so a hung SIMRS upstream can't freeze the UI
+// fetch wrapper with timeout + auto-relogin saat sesi web UI expired (401)
+async function silentRelogin(){
+  try{
+    const saved = localStorage.getItem('sirsLastLogin');
+    if(!saved) return false;
+    const body = JSON.parse(saved);
+    const r = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json();
+    return !!j.ok;
+  }catch(e){ return false; }
+}
 async function fetchTO(url, opts={}, ms=60000){
   const ctrl = new AbortController();
   const t = setTimeout(()=>ctrl.abort(), ms);
-  try{ const r = await fetch(url, {signal: ctrl.signal, ...opts}); return r; }
+  try{
+    let r = await fetch(url, {signal: ctrl.signal, ...opts});
+    if(r.status === 401 && await silentRelogin()){
+      const ctrl2 = new AbortController();
+      setTimeout(()=>ctrl2.abort(), ms);
+      r = await fetch(url, {signal: ctrl2.signal, ...opts});
+    }
+    return r;
+  }
   finally{ clearTimeout(t); }
 }
 
 // ---- patient identity header (Fix 1) ----
 const _patientCache = {};  // {norm: {nama,jk,tgl_lahir,no_hp,ruangan,kamar,dpjp_aktif,masuk_aktif,_ts}}
-async function ensurePatientHeader(parentEl, norm) {
-  if (!parentEl || !norm) return;
-  if (parentEl.dataset.hdrNorm === norm && parentEl.dataset.hdrReady === '1') return;
-  parentEl.dataset.hdrNorm = norm;
-  const old = parentEl.querySelector('.ph-pat');
-  if (old) old.remove();
-  const ph = document.createElement('div');
-  ph.className = 'ph-pat';
-  ph.style.cssText = 'padding:8px 12px;background:var(--green-light);border-radius:8px;margin-bottom:8px;font-size:13px;line-height:1.6';
-  ph.innerHTML = `<b>RM ${esc(norm)}</b> <span style="color:var(--gray-500)">⏳ memuat identitas…</span>`;
-  parentEl.prepend(ph);
+async function ensurePatientHeader(norm) {
+  for (const hdrId of ['patientHeaderCppt', 'patientHeaderDetail', 'labHeader']) {
+    const hdr = document.getElementById(hdrId);
+    if (!hdr) continue;
+    if (hdr.dataset.hdrNorm === norm) continue;
+    hdr.dataset.hdrNorm = norm;
+    hdr.innerHTML = `<div class="ph-pat" style="padding:8px 12px;background:var(--green-light);border-radius:8px;margin-bottom:8px;font-size:13px;line-height:1.6"><b>RM ${esc(norm)}</b> <span style="color:var(--gray-500)">⏳ memuat identitas…</span></div>`;
+  }
+  if (!norm) return;
   let info = _patientCache[norm];
   if (!info || Date.now() - info._ts > 300000) {
     try {
       const [p, k] = await Promise.all([
-        fetch('/api2/pasien?norm=' + encodeURIComponent(norm)).then(r => r.json()),
-        fetch('/api2/kunjungan?norm=' + encodeURIComponent(norm)).then(r => r.json()),
+        fetchTO('/api2/pasien?norm=' + encodeURIComponent(norm)).then(r => r.json()),
+        fetchTO('/api2/kunjungan?norm=' + encodeURIComponent(norm)).then(r => r.json()),
       ]);
       const aktif = (k.ok && k.kunjungan.find(x => !x.keluar)) || {};
       info = {
@@ -273,8 +292,10 @@ async function ensurePatientHeader(parentEl, norm) {
   if (info.ruangan || info.kamar) html += `<br>🛏️ <b>${esc(info.ruangan||'')}</b>${info.kamar? ' / '+esc(info.kamar):''}`;
   if (info.dpjp_aktif) html += ` · 👨‍⚕️ DPJP: <span style="color:var(--blue)">${esc(info.dpjp_aktif)}</span>`;
   if (info.masuk_aktif) html += ` · 🩺 Aktif sejak ${esc(info.masuk_aktif)}`;
-  ph.innerHTML = html;
-  parentEl.dataset.hdrReady = '1';
+  for (const hdrId of ['patientHeaderCppt', 'patientHeaderDetail', 'labHeader']) {
+    const hdr = document.getElementById(hdrId);
+    if (hdr && hdr.querySelector('.ph-pat')) hdr.querySelector('.ph-pat').innerHTML = html;
+  }
 }
 
 let currentRanap = [];
@@ -462,8 +483,7 @@ async function loadPasienRanap(kunjungan, norm, nopen) {
   // Load CPPT
   const res = document.getElementById('result');
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
-  ensurePatientHeader(res, norm);  // Fix 1: identity header
-  ensurePatientHeader(document.getElementById('detailContent'), norm);
+  ensurePatientHeader(norm);  // Fix 1: identity header
   try {
     const r = await fetch('/api2/cppt?kunjungan=' + encodeURIComponent(kunjungan));
     const j = await r.json();
@@ -566,8 +586,7 @@ async function loadCppt(kunjungan, idx, nopen, norm) {
   if (el) el.classList.add('active');
   const res = document.getElementById('result');
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
-  ensurePatientHeader(res, currentNorm);  // Fix 1: identity header
-  ensurePatientHeader(document.getElementById('detailContent'), currentNorm);
+  ensurePatientHeader(currentNorm);  // Fix 1: identity header
   try {
     const r = await fetch('/api2/cppt?kunjungan=' + encodeURIComponent(kunjungan));
     const j = await r.json();
@@ -597,7 +616,7 @@ function renderCppt() {
   </div>`;
   if (!list.length) {
     res.innerHTML = filterHtml + '<div class="empty" style="padding:24px;text-align:center">Tidak ada CPPT dari penulis ini</div>';
-    ensurePatientHeader(res, currentNorm);
+    ensurePatientHeader(currentNorm);
     return;
   }
   let html = filterHtml;
@@ -619,7 +638,7 @@ function renderCppt() {
     </div>`;
   });
   res.innerHTML = html;
-  ensurePatientHeader(res, currentNorm);  // Fix 1: re-add identity after renderCppt overwrites
+  ensurePatientHeader(currentNorm);  // Fix 1: re-add identity after renderCppt overwrites
 }
 
 function toggleDetail(headEl) {
@@ -819,12 +838,20 @@ function renderLab() {
   else renderLabSpecial();
 }
 
+let _labItemTimer = null;
 function renderLabResume() {
   const body = document.getElementById('labResumeBody');
   if (!body) return;
   // Fix 5: search query + filter
   const q = (document.getElementById('labSearchInput')?.value || '').toLowerCase().trim();
   const fv = (document.getElementById('labFilter')?.value || 'all');
+  // cari PER ITEM hasil lab (lintas semua panel) kalau query >= 2 char
+  if (q.length >= 2) {
+    clearTimeout(_labItemTimer);
+    body.innerHTML = '<div class="loading" style="padding:10px">🔍 Mencari item lab "' + esc(q) + '" di semua panel...</div>';
+    _labItemTimer = setTimeout(() => doLabItemSearch(q, fv), 300);
+    return;
+  }
   let list = currentLabResume;  // windowed = top3 (lalu full setelah special)
   if (q) list = list.filter(p => (p.jenis || '').toLowerCase().includes(q));
   if (fv !== 'all') list = list.filter(p => p.jenis === fv);
@@ -865,6 +892,48 @@ function renderLabResume() {
   if (list.length && !q) {
     const firstHead = document.querySelector('.detail-sec[data-kl] .head');
     if (firstHead) toggleLabPanel(firstHead, list[0].kunjungan_lab);
+  }
+}
+
+async function doLabItemSearch(q, fv) {
+  const body = document.getElementById('labResumeBody');
+  if (!body) return;
+  const norm = currentNorm || '';
+  if (!norm) { body.innerHTML = '<div class="empty">Pilih pasien dulu</div>'; return; }
+  try {
+    const r = await fetchTO('/api2/lab/search?norm=' + encodeURIComponent(norm) + '&q=' + encodeURIComponent(q), {}, 60000);
+    const j = await r.json();
+    if (!j.ok) { body.innerHTML = '<div class="err">Search gagal: ' + esc(j.error||'') + '</div>'; return; }
+    let res = (j.results || []);
+    if (fv !== 'all') res = res.filter(rr => rr.jenis === fv);
+    if (!res.length) {
+      body.innerHTML = '<div class="empty">Tidak ada item lab cocok "' + esc(q) + '" (' + j.total_panels + ' panel diperiksa)</div>';
+      const cnt = document.getElementById('labCount'); if (cnt) cnt.textContent = '0 item cocok';
+      return;
+    }
+    let html = '';
+    res.forEach((rr) => {
+      html += `<div class="detail-sec" data-kl="${esc(rr.kunjungan_lab)}">
+        <div class="head" style="cursor:default">
+          <b>${esc(rr.tanggal || 'Tanpa Tanggal')}</b>
+          <span class="penulis">${esc(rr.jenis)}</span>
+          <span class="badge" style="background:#fef3c7;color:#92400e">${rr.match.length} cocok</span>
+        </div>
+        <div class="body">
+          <div class="lab-items">${rr.match.map(it => {
+            const nm = esc(it.nama), hasil = esc(it.hasil), sat = esc(it.satuan||''), normv = esc(it.normal||'');
+            const copyTxt = it.nama + ' = ' + it.hasil + (it.satuan ? ' ' + it.satuan : '');
+            return '<label class="lab-item" style="background:#eff6ff;"><span class="li-nama" title="' + nm + '">' + nm + '</span><span class="li-hasil"><b>' + hasil + '</b></span><span class="li-sat">' + sat + '</span>' + (normv ? '<span class="li-norm">N: ' + normv + '</span>' : '') + '<span class="li-copy" data-copy="' + copyTxt + '" onclick="event.preventDefault();event.stopPropagation();copyText(this)" title="Copy">&#x1F4CB;</span></label>';
+          }).join('')}</div>
+          <div style="padding:4px 10px"><button class="copy-panel-btn" onclick="event.stopPropagation();copyLabPanel('${esc(rr.kunjungan_lab)}')">📋 Copy Kunjungan</button></div>
+        </div>
+      </div>`;
+    });
+    body.innerHTML = html;
+    const cnt = document.getElementById('labCount');
+    if (cnt) cnt.textContent = `${j.total_items} item cocok di ${res.length} panel`;
+  } catch(e) {
+    body.innerHTML = '<div class="err">Error: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -1112,5 +1181,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <div id="toast"></div>
+<script src="/static/switch-dpjp.js"></script>
 </body>
 </html>

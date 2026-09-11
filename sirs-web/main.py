@@ -56,18 +56,29 @@ def save_account(login: str, password: str, label: str = None):
     os.chmod(ACCOUNTS_FILE, 0o600)
     return data
 
-def simrs_login(login: str, password: str) -> requests.Session:
+def simrs_login(login: str, password: str, label: str = "") -> requests.Session:
     """Login to SIMRS, return authenticated session or raise."""
+    accs = load_accounts()
+    simrs_base = accs.get("SIMRS_BASE", "http://127.0.0.1:8080")
     s = requests.Session()
     s.headers.update({"User-Agent": "Mozilla/5.0 SIMRS-Web"})
     r = s.post(
-        f"http://127.0.0.1:8080/webservice/authentication/login",
+        f"{simrs_base}/webservice/authentication/login",
         json={"LOGIN": login, "PASSWORD": password, "CAPTCHA": "x"},
         timeout=30,
     )
     if not r.json().get("success"):
         raise HTTPException(status_code=401, detail="Login SIMRS gagal: " + str(r.json().get("message", "")))
+    # simpan kredensial untuk auto-relogin
+    _register_creds(s, login, password, label)
     return s
+
+def get_simrs_base():
+    try:
+        accs = load_accounts()
+        return accs.get("SIMRS_BASE", "http://127.0.0.1:8080")
+    except Exception:
+        return "http://127.0.0.1:8080"
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
@@ -88,7 +99,7 @@ def api_login(payload: dict):
         login, password = payload["login"], payload["password"]
         label = payload.get("label") or login
     try:
-        s = simrs_login(login, password)
+        s = simrs_login(login, password, label)
     except HTTPException as e:
         return JSONResponse({"ok": False, "error": e.detail}, status_code=401)
     # save manual account for future use (skip if already in list)
@@ -115,6 +126,43 @@ def api_me(request: Request):
     if sid in SESSIONS:
         return {"ok": True, "user": SESSIONS[sid]["user"]}
     return {"ok": False}
+
+@app.post("/api/switch")
+def api_switch(request: Request, payload: dict):
+    """Switch DPJP tanpa logout: ganti sesi SIMRS di balik sid yang sama.
+    payload: {account_index: int} (mode select dari accounts.json)."""
+    sid = request.cookies.get("sid")
+    if not sid or sid not in SESSIONS:
+        return JSONResponse({"ok": False, "error": "Not authenticated"}, status_code=401)
+    accs = load_accounts()
+    try:
+        idx = int(payload["account_index"])
+        acc = accs["accounts"][idx]
+    except (KeyError, ValueError, TypeError):
+        return JSONResponse({"ok": False, "error": "Akun tidak valid"}, status_code=400)
+    login, password, label = acc["login"], acc["password"], acc["label"]
+    # kalau switch ke akun yg sama, tidak perlu apa-apa
+    if SESSIONS[sid].get("login") == login:
+        return {"ok": True, "user": label, "unchanged": True}
+    try:
+        new_sess = simrs_login(login, password, label)
+    except HTTPException as e:
+        return JSONResponse({"ok": False, "error": e.detail}, status_code=401)
+    # buang creds session lama, pasang yang baru (utk auto-relogin)
+    old = SESSIONS[sid].get("simrs_session")
+    if old is not None:
+        _SIMRS_CREDS.pop(id(old), None)
+    SESSIONS[sid]["simrs_session"] = new_sess
+    SESSIONS[sid]["user"] = label
+    SESSIONS[sid]["login"] = login
+    SESSIONS[sid]["ts"] = time.time()
+    return {"ok": True, "user": label}
+
+@app.get("/api/accounts")
+def api_accounts():
+    """Daftar akun (label saja) utk dropdown switch DPJP."""
+    accs = load_accounts()
+    return {"ok": True, "accounts": [{"i": i, "label": a["label"]} for i, a in enumerate(accs["accounts"])]}
 
 # --- helper for downstream steps (not used in step 1 UI yet) ---
 def get_simrs(request: Request) -> requests.Session:
@@ -994,10 +1042,37 @@ def kick_prewarm(sess, norms):
         return
     _threading.Thread(target=_prewarm_norms, args=(sess, norms), daemon=True).start()
 
-def _simrs_get(sess, url, params=None, timeout=20):
-    BASE = "http://127.0.0.1:8080"
+# --- auto re-login: kredensial SIMRS per session object, utk refresh otomatis ---
+_SIMRS_CREDS = {}  # id(requests.Session) -> {"login":..., "password":..., "label":...}
+
+def _register_creds(sess, login, password, label=""):
+    _SIMRS_CREDS[id(sess)] = {"login": login, "password": password, "label": label}
+
+def _relogin_session(sess) -> bool:
+    """Re-login SIMRS pakai kredensial tersimpan; copy cookie baru ke session lama.
+    Return True kalau berhasil."""
+    creds = _SIMRS_CREDS.get(id(sess))
+    if not creds:
+        return False
     try:
-        r = sess.get(f"{BASE}{url}", params=params, timeout=timeout)
+        base = get_simrs_base()
+        r = sess.post(
+            f"{base}/webservice/authentication/login",
+            json={"LOGIN": creds["login"], "PASSWORD": creds["password"], "CAPTCHA": "x"},
+            timeout=30,
+        )
+        return bool(r.json().get("success"))
+    except Exception:
+        return False
+
+_AUTH_ERR_HINTS = ("auth", "login", "session", "unauthor", "token", "expired")
+
+def _simrs_get(sess, url, params=None, timeout=20):
+    BASE = get_simrs_base()
+    def _do_get():
+        return sess.get(f"{BASE}{url}", params=params, timeout=timeout)
+    try:
+        r = _do_get()
     except Exception as e:
         return [], f"request failed: {str(e)[:120]}"
     ct = r.headers.get("content-type", "")
@@ -1008,7 +1083,28 @@ def _simrs_get(sess, url, params=None, timeout=20):
             return [], "invalid JSON"
         if j.get("success"):
             return j.get("data", []), None
-        return [], j.get("message", "non-success")
+        msg = str(j.get("message", "non-success"))
+        # auto re-login kalau error terlihat seperti sesi habis
+        if any(h in msg.lower() for h in _AUTH_ERR_HINTS) and _relogin_session(sess):
+            try:
+                r2 = _do_get()
+                j2 = r2.json()
+                if j2.get("success"):
+                    return j2.get("data", []), None
+            except Exception:
+                pass
+        return [], msg
+    # non-JSON (biasanya redirect ke halaman login) -> coba re-login sekali
+    if r.status_code in (401, 403) or "html" in ct:
+        if _relogin_session(sess):
+            try:
+                r2 = _do_get()
+                if "json" in r2.headers.get("content-type", ""):
+                    j2 = r2.json()
+                    if j2.get("success"):
+                        return j2.get("data", []), None
+            except Exception:
+                pass
     return [], "non-JSON response"
 
 @app.get("/testing2", response_class=HTMLResponse)
@@ -1338,6 +1434,53 @@ def api2_lab_detil(request: Request, kunjungan_lab: str = ""):
                           "satuan": str(sat).strip(), "normal": str(normv).strip(),
                           "jenis": classify_lab(str(name.strip()) if name else "")})
     return JSONResponse({"ok": True, "kunjungan_lab": kunjungan_lab, "items": items})
+
+# --- lab search per item (lintas semua panel) ---
+_LABDETIL_CACHE = {}  # kunjungan_lab -> {"ts":..., "items":[...]}
+
+def _lab_detil_items(sess, kl):
+    """Fetch+cache items satu panel. Return list (kosong kalau gagal)."""
+    c = _LABDETIL_CACHE.get(kl)
+    if c and (time.time() - c["ts"]) < CACHE_TTL:
+        return c["items"]
+    data, err = _sem_get(sess, "/webservice/medicalrecord/resume/hasillab/detil",
+                         {"KUNJUNGAN_LAB": kl}, timeout=20)
+    items = []
+    if data:
+        for d in data:
+            ref = d.get("REFERENSI", {}) or {}
+            param = ref.get("PARAMETER_TINDAKAN", {}) or ref.get("LABORATORIUM", {}) or {}
+            name = d.get("PARAMETER") or param.get("PARAMETER") or param.get("NAMA") or d.get("NAMA")
+            val = d.get("HASIL"); sat = d.get("SATUAN") or ""
+            normv = d.get("NORMAL") or d.get("NILAI_NORMAL") or param.get("NILAI_RUJUKAN") or ""
+            if name and val is not None and str(val).strip():
+                items.append({"nama": str(name).strip(), "hasil": str(val).strip(),
+                              "satuan": str(sat).strip(), "normal": str(normv).strip()})
+    _LABDETIL_CACHE[kl] = {"ts": time.time(), "items": items}
+    return items
+
+@app.get("/api2/lab/search")
+def api2_lab_search(request: Request, norm: str = "", q: str = "", fresh: int = 0):
+    """Cari HASIL LAB PER ITEM di semua panel satu pasien.
+    Return daftar match per panel: {tanggal, jenis, kunjungan_lab, match:[items]}."""
+    sess, user = require_auth2(request)
+    if not norm or not q:
+        return JSONResponse({"ok": False, "error": "norm/q kosong"}, status_code=400)
+    ql = q.lower()
+    idx = _lab_index_core(sess, norm, _sem_get)
+    panels = idx.get("panels", [])
+    import concurrent.futures as cf
+    def probe(p):
+        items = _lab_detil_items(sess, p["kunjungan_lab"])
+        match = [it for it in items if ql in it["nama"].lower() or ql in p["jenis"].lower()]
+        return {"tanggal": p["tanggal"], "jenis": p["jenis"], "kunjungan_lab": p["kunjungan_lab"],
+                "n_total": len(items), "match": match}
+    with cf.ThreadPoolExecutor(max_workers=12) as ex:
+        results = list(ex.map(probe, panels))
+    hits = [r for r in results if r["match"]]
+    return JSONResponse({"ok": True, "query": q, "total_panels": len(panels),
+                         "total_items": sum(len(r["match"]) for r in hits),
+                         "results": hits})
 
 @app.get("/api2/lab/special")
 def api2_lab_special(request: Request, norm: str = "", kunjungan: str = "", fresh: int = 0):
@@ -1679,8 +1822,8 @@ def api2_laporan_start(request: Request, payload: dict):
             norms.append(x)
     if not norms:
         return JSONResponse({"ok": False, "error": "Tidak ada nomor RM valid (5-12 digit) di teks"}, status_code=400)
-    if len(norms) > 60:
-        return JSONResponse({"ok": False, "error": f"Maks 60 pasien per laporan (dikirim {len(norms)})"}, status_code=400)
+    if len(norms) > 100:
+        return JSONResponse({"ok": False, "error": f"Maks 100 pasien per laporan (dikirim {len(norms)})"}, status_code=400)
     laporan_cleanup()
     job_id = str(uuid.uuid4())[:8]
     with _LAPORAN_LOCK:

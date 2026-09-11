@@ -91,7 +91,7 @@ tailwind.config = {
           <button id="genBtn" class="btn btn-primary flex-1 btn-h" onclick="startGenerate()">🧪 Generate Laporan</button>
           <button class="btn btn-outline btn-h" onclick="clearAll()" title="Kosongkan daftar">Clear</button>
         </div>
-        <p class="text-[11px] leading-relaxed text-muted-foreground">Maks 60 pasien. Data diambil per pasien: identitas, ruangan/kamar, DPJP, lab reguler + special, detail klinis.</p>
+        <p class="text-[11px] leading-relaxed text-muted-foreground">Maks 100 pasien. Data diambil per pasien: identitas, ruangan/kamar, DPJP, lab reguler + special, detail klinis.</p>
       </div>
     </div>
   </aside>
@@ -190,7 +190,7 @@ function removeFromQueue(n){ queue=queue.filter(x=>x!==n); renderQueue(); }
 // ---------- generate ----------
 async function startGenerate(){
   if(!queue.length){ showToast('Tambahkan pasien dulu'); return; }
-  if(queue.length>60){ showToast('Maks 60 pasien'); return; }
+  if(queue.length>100){ showToast('Maks 100 pasien'); return; }
   stopStream(); resetView();
   $('progressWrap').classList.remove('hidden');
   setProgress(0, queue.length);
@@ -469,5 +469,6 @@ fetch('/api/me').then(r=>r.json()).then(j=>{ if(j.ok) $('loginBadge').textConten
 renderQueue();
 (function(){ const m=location.pathname.match(/^\/laporan-lab\/([0-9a-f-]{4,16})$/); if(m) loadSnapshot(m[1]); })();
 </script>
+<script src="/static/switch-dpjp.js"></script>
 </body>
 </html>

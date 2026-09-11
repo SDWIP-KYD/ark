@@ -100,6 +100,10 @@
   .li-norm { color: var(--gray-500); font-size: 11px; margin-left: auto }
   .li-copy { opacity: 0.5; font-size: 14px; cursor: pointer; }
   .lab-item:hover .li-copy { opacity: 1; color: var(--green-dark); }
+  .lab-group { margin: 8px 0; padding: 6px 8px; background: var(--gray-50); border-radius: 6px; border-left: 3px solid var(--green); }
+  .lab-group-title { font-size: 12px; font-weight: 700; color: var(--green-dark); margin-bottom: 4px; padding: 4px 8px; background: var(--green-light); border-radius: 4px; }
+  .lab-group .lab-item { border-bottom: 1px dotted var(--gray-200); }
+  .lab-group .lab-item:last-child { border-bottom: none; }
   .copy-panel-btn { padding: 5px 12px; background: var(--green-light); color: var(--green-dark); border: 1px solid var(--green); border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   .copy-panel-btn:active { transform: scale(.97); }
   .lab-chk { width: 16px; height: 16px; flex-shrink: 0; margin-right: 4px; accent-color: var(--green); cursor: pointer; }
@@ -203,6 +207,9 @@ let currentKunjungan = "";
 let currentNopen = "";
 let labLoadedForKunjungan = false;
 let detailLoadedForKunjungan = false;
+const _labItemsCache = {}; // {kunjungan_lab: [{nama, hasil, satuan, normal}]} untuk deep search
+const LAB_DEEP_CONCURRENCY = 6; // worker budget deep search: backend SEM_U=12, 6 aman dgn margin 2x
+let _labSearchGen = 0; // generation counter: cegah double-fire saat user mengetik cepat
 
 function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 // fetch wrapper with timeout so a hung SIMRS upstream can't freeze the UI
@@ -326,6 +333,9 @@ async function loadPasienRanap(kunjungan, norm, nopen) {
   if (el) el.classList.add('active');
   // Tampilkan riwayat kunjungan pasien ini di SIDEBAR ATAS
   loadRiwayat(norm, kunjungan);
+  // True parallel: fire Detail + Lab SEKARANG tanpa nunggu CPPT.
+  loadDetail(kunjungan, nopen, norm);
+  loadLab(kunjungan, nopen);
   // Load CPPT
   const res = document.getElementById('result');
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
@@ -340,8 +350,6 @@ async function loadPasienRanap(kunjungan, norm, nopen) {
       currentCpptData = j.cppt;
       renderCppt();
     }
-    loadDetail(kunjungan, nopen, norm);
-    loadLab(kunjungan, nopen);
   } catch(e) { res.innerHTML = `<div class="err">Error: ${e.message}</div>`; }
   showTab('tengah');
 }
@@ -435,6 +443,10 @@ async function loadCppt(kunjungan, idx, nopen, norm) {
   res.innerHTML = '<div class="loading">Memuat CPPT...</div>';
   ensurePatientHeader(res, currentNorm);  // Fix 1: identity header
   ensurePatientHeader(document.getElementById('detailContent'), currentNorm);
+  // True parallel: fire Detail + Lab SEKARANG tanpa nunggu CPPT selesai.
+  // Masing-masing panel terisi independen begitu responsenya tiba.
+  loadDetail(kunjungan, nopen, norm);
+  loadLab(kunjungan, nopen || "");  // fire lab (index+special parallel) on every RM/kunjungan open
   try {
     const r = await fetch('/api2/cppt?kunjungan=' + encodeURIComponent(kunjungan));
     const j = await r.json();
@@ -444,8 +456,6 @@ async function loadCppt(kunjungan, idx, nopen, norm) {
       currentCpptData = j.cppt;
       renderCppt();
     }
-    loadDetail(kunjungan, nopen, norm);
-    loadLab(kunjungan, nopen || "");  // fire lab (index+special parallel) on every RM/kunjungan open
   } catch(e) { res.innerHTML = `<div class="err">Error: ${e.message}</div>`; }
 }
 
@@ -682,24 +692,31 @@ function renderLab() {
     }
   }
   lc.innerHTML = html;
-  if (currentLabSub === 'resume') renderLabResume();
-  else renderLabSpecial();
+  if (currentLabSub === 'resume') {
+    renderLabResume(); // async, runs in background
+  } else {
+    renderLabSpecial();
+  }
 }
 
-function renderLabResume() {
+async function renderLabResume() {
   const body = document.getElementById('labResumeBody');
   if (!body) return;
   // Fix 5: search query + filter
   const q = (document.getElementById('labSearchInput')?.value || '').toLowerCase().trim();
   const fv = (document.getElementById('labFilter')?.value || 'all');
   let list = currentLabResume;  // windowed = top3 (lalu full setelah special)
-  if (q) list = list.filter(p => (p.jenis || '').toLowerCase().includes(q));
+  
+  // Apply jenis filter first (doesn't need cache)
   if (fv !== 'all') list = list.filter(p => p.jenis === fv);
+  
   // Fix 3: progress banner
   let html = '';
   if (currentLabResumeMore.length > 0 && !q && fv === 'all') {
     html += `<div class="lab-progress">⏳ Memuat ${currentLabResume.length}/${currentLabResumeTotal} panel lab…</div>`;
   }
+  
+  // Render ALL panels first (needed for DOM-based operations)
   list.forEach((p, i) => {
     const collapsed = i > 0 ? 'collapsed' : '';
     html += `<div class="detail-sec ${collapsed}" data-kl="${esc(p.kunjungan_lab)}">
@@ -707,13 +724,56 @@ function renderLabResume() {
         <span class="caret">${collapsed ? '▸' : '▾'}</span>
         <b>${esc(p.tanggal || 'Tanpa Tanggal')}</b>
         <span class="penulis">${esc(p.jenis)}</span>
-        <span class="badge" id="badge-${esc(p.kunjungan_lab)}">${p.n_items ? p.n_items+' item' : 'klik untuk muat'}</span>
+        <span class="badge" id="badge-${esc(p.kunjungan_lab)}">${p.n_items ? p.n_items+' item' : 'memuat...'}</span>
       </div>
       <div style="padding:4px 10px"><button class="copy-panel-btn" onclick="event.stopPropagation();copyLabPanel('${esc(p.kunjungan_lab)}')">📋 Copy Kunjungan</button></div>
       <div class="body" id="labdet-${esc(p.kunjungan_lab)}"></div>
     </div>`;
   });
-  body.innerHTML = html || `<div class="empty">${q ? 'Tidak ada panel cocok "'+esc(q)+'"' : 'Tidak ada data'}</div>`;
+  body.innerHTML = html || `<div class="empty">${q ? 'Memuat...' : 'Tidak ada data'}</div>`;
+  
+  // Now DOM exists - do auto-load for top 3 OR deep search
+  if (q) {
+    // Deep search: load uncached panels via worker-pool (max 6 concurrent),
+    // then hide non-matching panels. Generation guard: abaikan hasil run basi.
+    const myGen = ++_labSearchGen;
+    const uncached = list.filter(p => !_labItemsCache[p.kunjungan_lab]);
+    if (uncached.length > 0) {
+      body.insertAdjacentHTML('afterbegin', '<div class="lab-progress" id="deepProg">⏳ Mencari di ' + uncached.length + ' panel (paralel ×6)…</div>');
+      const queue = [...uncached];
+      const workers = Array.from({length: Math.min(LAB_DEEP_CONCURRENCY, queue.length)}, async () => {
+        while (queue.length) {
+          if (myGen !== _labSearchGen) return; // run basi: berhenti
+          const p = queue.shift();
+          try { await loadLabDetail(p.kunjungan_lab); } catch (e) { /* lanjut panel berikutnya */ }
+        }
+      });
+      await Promise.allSettled(workers);
+      if (myGen !== _labSearchGen) return; // user sudah mengetik query baru
+      const dp = document.getElementById('deepProg');
+      if (dp) dp.remove();
+    }
+    // Hide panels that don't match search
+    let shown = 0;
+    list.forEach(p => {
+      const titleMatch = (p.jenis || '').toLowerCase().includes(q);
+      const items = _labItemsCache[p.kunjungan_lab] || [];
+      const itemMatch = items.some(it => (it.nama || '').toLowerCase().includes(q));
+      const match = titleMatch || itemMatch;
+      if (match) shown++;
+      const sec = document.querySelector(`.detail-sec[data-kl="${esc(p.kunjungan_lab)}"]`);
+      if (sec) {
+        sec.style.display = match ? '' : 'none';
+      }
+    });
+    const cnt2 = document.getElementById('labCount');
+    if (cnt2) cnt2.textContent = `${shown} dari ${list.length} panel cocok "${q}"`;
+  } else {
+    // No search: auto-load top 3
+    list.forEach((p, i) => {
+      if (i < 3) loadLabDetail(p.kunjungan_lab);
+    });
+  }
   // Fix 5: count
   const cnt = document.getElementById('labCount');
   if (cnt) {
@@ -730,6 +790,7 @@ function renderLabResume() {
   }
   // auto-load + expand first panel (skip when searching)
   if (list.length && !q) {
+    // auto-expand first panel
     const firstHead = document.querySelector('.detail-sec[data-kl] .head');
     if (firstHead) toggleLabPanel(firstHead, list[0].kunjungan_lab);
   }
@@ -767,33 +828,57 @@ async function toggleLabPanel(headEl, kl) {
   }
 }
 
-async function loadLabDetail(kl, headEl) {
-  const body = document.getElementById('labdet-' + kl);
-  if (!body || body.dataset.loaded) return;  // cache: jangan refetch
+async function loadLabDetail(kl, headEl, _retry) {
+  let body = document.getElementById('labdet-' + kl);
+  if (!body) {
+    // DOM di-render ulang oleh run lain (pIdx vs pSp): tunggu sebentar lalu coba lagi
+    if ((_retry || 0) < 6) {
+      await new Promise(r => setTimeout(r, 500));
+      return loadLabDetail(kl, headEl, (_retry || 0) + 1);
+    }
+    return; // elemen benar-benar tidak ada (mis. panel ter-filter): berhenti diam-diam
+  }
+  if (body.dataset.loaded) return;  // cache: jangan refetch
   body.dataset.loaded = '1';
-  body.innerHTML = '<div class="loading" style="padding:8px">Memuat...</div>';
+  // Update badge dulu agar user tau sedang loading
+  const badge = document.getElementById('badge-' + kl);
+  if (badge) badge.textContent = '⏳ memuat...';
+  body.innerHTML = '<div class="loading" style="padding:8px">Memuat detail panel...</div>';
   try {
     const r = await fetchTO('/api2/lab/detil?kunjungan_lab=' + encodeURIComponent(kl), {}, 30000);
     const j = await r.json();
     if (!j.ok) {
-      const msg = j.arsip ? '📦 ' + esc(j.error||'') : 'Gagal: ' + esc(j.error||'');
-      body.innerHTML = `<div class="err">${msg}</div>`;
-      body.dataset.loaded = '';  // allow retry
+      const msg = j.arsip ? '📦 ' + esc(j.error||'') : 'Tidak ada hasil lab untuk panel ini (kemungkinan bukan pemeriksaan laboratorium)';
+      body.innerHTML = `<div class="empty" style="padding:8px">${msg}</div>`;
+      if (badge) badge.textContent = '0 item';
+      body.dataset.loaded = '1';  // jangan retry — bukan error jaringan
       return;
     }
     const items = j.items || [];
-    document.getElementById('badge-' + kl).textContent = items.length + ' item';
-    body.innerHTML = `<div class="lab-items">${items.map((it, idx) => {
+    // Cache items untuk deep search
+    _labItemsCache[kl] = items;
+    
+    // Update badge dengan jumlah item + parameter unik
+    if (badge) {
+      const uniqueParams = new Set(items.map(it => (it.nama || '').toLowerCase()));
+      badge.textContent = items.length + ' item / ' + uniqueParams.size + ' parameter';
+    }
+    
+    // Render flat list (no grouping)
+    const html = `<div class="lab-items">${items.map((it, idx) => {
       const nm = esc(it.nama || '');
       const hasil = esc(it.hasil || '');
       const sat = esc(it.satuan || '');
       const normv = esc(it.normal || '');
-      const copyTxt = nm + ' = ' + hasil + (sat ? ' ' + sat : '');  // nm/hasil/sat already esc()'d -> safe in data-copy attr
+      const copyTxt = nm + ' = ' + hasil + (sat ? ' ' + sat : '');
       const full = nm + ': ' + hasil + (sat ? ' ' + sat : '');
       return '<label class="lab-item"><input type="checkbox" class="lab-chk" data-kl="'+kl+'" data-full="'+full+'" checked><span class="li-nama" title="'+nm+'">'+nm+'</span><span class="li-hasil"><b>'+hasil+'</b></span><span class="li-sat">'+sat+'</span>' + (normv ? '<span class="li-norm">N: '+normv+'</span>' : '') + '<span class="li-copy" data-copy="'+copyTxt+'" onclick="event.preventDefault();event.stopPropagation();copyText(this)" title="Copy">&#x1F4CB;</span></label>';
     }).join('')}</div>`;
+    
+    body.innerHTML = html;
   } catch(e) {
     body.innerHTML = '<div class="err">Error: ' + esc(e.message) + '</div>';
+    if (badge) badge.textContent = '❌';
   }
 }
 
