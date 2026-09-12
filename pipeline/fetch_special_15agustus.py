@@ -233,3 +233,118 @@ def main():
 
 if __name__=='__main__':
     main()
+
+# ── Radiologi state merge (port dari sirs-web _rad_merge, PRD 2026-09-13) ──
+# State: read (ada interpretasi) | unread (gambaran basah di PACS, belum dibaca)
+# | menunggu (belum dikerjakan) | batal.
+# Backward compatible: key lama (tanggal/klinis/kesan/hasil) tetap diisi.
+OVIYAM_BASE = "https://rad.kay.web.id/oviyam3/viewer.html?accessionNumber="
+
+def _rad_strip(h):
+    import re as _re, html as _h
+    if not h: return ""
+    h = _re.sub(r"<br\s*/?>", "\n", str(h), flags=_re.I)
+    h = _re.sub(r"<[^>]+>", "", h)
+    return _h.unescape(h).strip()
+
+def _rad_hasil_detail(d):
+    det = {}
+    for k_src, k_dst in [("KLINIS","Indikasi"),("HASIL","Hasil"),("KESAN","Kesan"),
+                         ("USUL","Usulan"),("BTK","Dibaca oleh")]:
+        v = _rad_strip(d.get(k_src) or "")
+        if v: det[k_dst] = v
+    return det
+
+def fetch_rad_merged(s, norm):
+    try:
+        rad = s.get(f"{BASE}/layanan/hasilrad", params={'NORM':norm,'limit':50}, timeout=20).json().get('data') or []
+    except Exception:
+        rad = []
+    by_tm, by_ordnum = {}, {}
+    for d in rad:
+        tm = str(d.get("TINDAKAN_MEDIS","") or "").strip()
+        if tm: by_tm[tm] = d
+        try:
+            refnom = str(d["REFERENSI"]["TINDAKAN_MEDIS"]["REFERENSI"]["KUNJUNGAN"]["REF"])
+            if refnom and refnom != "None": by_ordnum[refnom] = d
+        except Exception: pass
+    # orderrad tidak support NORM → resolve kunjungan pasien dulu, cap 4
+    visits = []
+    try:
+        kd = s.get(f"{BASE}/pendaftaran/kunjungan", params={'NORM':norm,'STATUS':'1,2','limit':20}, timeout=20).json().get('data') or []
+        visits = [str(k.get("NOMOR")) for k in kd if k.get("NOMOR")]
+    except Exception: pass
+    visits = list(dict.fromkeys(visits))[:4]
+    rows, seen_order, matched_tm = [], set(), set()
+    for kun in visits:
+        try:
+            orders = s.get(f"{BASE}/layanan/orderrad", params={'KUNJUNGAN':kun,'HISTORY':1,'page':1,'start':0,'limit':25}, timeout=20).json().get('data') or []
+        except Exception:
+            continue
+        for o in orders[:25]:
+            nomor = str(o.get("NOMOR") or "")
+            if not nomor or nomor in seen_order: continue
+            seen_order.add(nomor)
+            st = o.get("STATUS")
+            if st not in (0,2): continue  # status tak dikenal → skip (YAGNI, sama dgn asli)
+            row = {'tanggal': (o.get('TANGGAL') or '')[:10], 'jenis': 'Radiologi',
+                   'jaringan': '', 'kesimpulan': '', 'detail': {},
+                   'nomor_order': nomor, 'indikasi': _rad_strip(o.get("ALASAN") or ""),
+                   'keterangan': _rad_strip(o.get("KETERANGAN") or ""),
+                   'cito': bool(o.get("CITO")),
+                   'state': 'batal' if st == 0 else 'menunggu',
+                   'accession': None, 'viewer_url': None}
+            hit = by_ordnum.get(nomor)  # fallback join granular-per-order
+            if st == 2:
+                try:
+                    dt = s.get(f"{BASE}/layanan/orderdetilrad", params={'ORDER_ID':nomor,'limit':25}, timeout=20).json().get('data') or []
+                except Exception:
+                    dt = []
+                ref = nama = None
+                if dt:
+                    r0 = dt[0]
+                    ref = str(r0.get("REF")).strip() if r0.get("REF") else None
+                    nama = ((r0.get("REFERENSI") or {}).get("TINDAKAN") or {}).get("NAMA")
+                row['jaringan'] = nama or ""
+                if hit is None and ref and ref in by_tm: hit = by_tm[ref]
+                if hit is not None:
+                    row['state'] = 'read'
+                    tmv = str(hit.get("TINDAKAN_MEDIS") or "").strip()
+                    row['accession'] = tmv or None
+                    row['kesimpulan'] = _rad_strip(hit.get("KESAN") or "")
+                    row['detail'] = _rad_hasil_detail(hit)
+                    row['tanggal'] = (hit.get("TANGGAL") or row['tanggal'] or "")[:10]
+                    if tmv: matched_tm.add(tmv)
+                elif ref:
+                    row['state'] = 'unread'  # gambaran basah: ada di PACS
+                    row['accession'] = ref
+                if not row['jaringan']:
+                    row['jaringan'] = row['indikasi'] or "Radiologi"
+                if row['accession']:
+                    row['viewer_url'] = OVIYAM_BASE + row['accession']
+            row['klinis'] = row['indikasi']      # backward-compat keys
+            row['kesan'] = row['kesimpulan']
+            row['hasil'] = row['detail'].get('Hasil', '')
+            rows.append(row)
+    # interpretasi tanpa order match (rawat jalan/GD) → tetap dirender
+    for tmid, d in by_tm.items():
+        if not tmid or tmid in matched_tm: continue
+        try:
+            ordnum = str(d["REFERENSI"]["TINDAKAN_MEDIS"]["REFERENSI"]["KUNJUNGAN"]["REF"] or "")
+        except Exception:
+            ordnum = ""
+        if ordnum and ordnum in seen_order: continue
+        matched_tm.add(tmid)
+        row = {'tanggal': (d.get("TANGGAL") or "")[:10], 'jenis': 'Radiologi',
+               'jaringan': _rad_strip(d.get("KLINIS") or "") or "Radiologi",
+               'kesimpulan': _rad_strip(d.get("KESAN") or ""),
+               'detail': _rad_hasil_detail(d), 'nomor_order': ordnum or None,
+               'indikasi': _rad_strip(d.get("KLINIS") or ""), 'keterangan': "",
+               'cito': False, 'state': 'read', 'accession': tmid,
+               'viewer_url': OVIYAM_BASE + tmid,
+               'klinis': _rad_strip(d.get("KLINIS") or ""),
+               'kesan': _rad_strip(d.get("KESAN") or ""),
+               'hasil': _rad_strip(d.get("HASIL") or "")}
+        rows.append(row)
+    rows.sort(key=lambda r: r.get('tanggal') or "", reverse=True)
+    return rows

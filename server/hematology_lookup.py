@@ -305,7 +305,8 @@ def fetch_special_full(s, norm):
 
     def _one(key):
         try:
-            return key, getattr(FS, f"fetch_{key}")(s, norm) or []
+            fn = getattr(FS, "fetch_rad_merged" if key == "rad" else f"fetch_{key}")
+            return key, fn(s, norm) or []
         except Exception:
             return key, []
 
